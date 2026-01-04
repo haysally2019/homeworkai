@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import { 
-  BookOpen, 
   MessageSquare, 
   Plus, 
   ChevronLeft, 
@@ -35,12 +34,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const supabase = createClient();
 
+  // Re-fetch data when path changes to ensure fresh data
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [pathname]);
 
   const fetchData = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getSession();
     if (!user) return;
 
     // Fetch Classes
@@ -97,7 +97,6 @@ export function Sidebar() {
       <ScrollArea className="flex-1 py-4">
         <div className="px-3 space-y-6">
           
-          {/* Core Apps */}
           <div className="space-y-1">
             <Button
               onClick={() => router.push('/chat')}
@@ -126,9 +125,11 @@ export function Sidebar() {
             </Button>
 
             <Button
-              variant="ghost"
+              onClick={() => router.push('/settings')}
+              variant={pathname === '/settings' ? 'secondary' : 'ghost'}
               className={cn(
-                "w-full justify-start font-medium transition-all text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                "w-full justify-start font-medium transition-all",
+                pathname === '/settings' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
                 isCollapsed && "justify-center px-2"
               )}
             >
