@@ -40,23 +40,23 @@ export function Sidebar() {
   }, [pathname]);
 
   const fetchData = async () => {
-    const { data: { user } } = await supabase.auth.getSession();
-    if (!user) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
 
     // Fetch Classes
     const { data: classData } = await supabase
       .from('classes')
       .select('id, name')
-      .eq('user_id', user.id)
+      .eq('user_id', session.user.id)
       .limit(10);
-    
+
     if (classData) setClasses(classData);
 
     // Fetch Credits
     const { data: creditData } = await supabase
       .from('users_credits')
       .select('credits, is_pro')
-      .eq('id', user.id)
+      .eq('id', session.user.id)
       .maybeSingle();
 
     if (creditData) {

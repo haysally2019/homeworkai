@@ -16,14 +16,14 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getSession();
-      if (!user) return;
-      setUser(user);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      setUser(session.user);
 
       const { data } = await supabase
         .from('users_credits')
         .select('credits, is_pro')
-        .eq('id', user.id)
+        .eq('id', session.user.id)
         .maybeSingle();
 
       if (data) {
