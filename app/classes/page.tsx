@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,56 +9,60 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Plus, Trash2, ArrowRight } from 'lucide-react';
+import { useClasses, createClass, deleteClass } from '@/hooks/use-classes';
+import { toast } from 'sonner';
 
 type Class = { id: string; name: string; code: string; color: string; semester: string; };
 
 export default function ClassesPage() {
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [loading, setLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [formData, setFormData] = useState({ name: '', code: '', color: '#3b82f6', semester: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
+  const { classes, isLoading, mutate } = useClasses(user?.id);
 
   useEffect(() => {
-    if (!authLoading && user) {
-      fetchClasses();
-    } else if (!authLoading && !user) {
+    if (!authLoading && !user) {
       router.push('/login');
     }
   }, [authLoading, user]);
 
-  const fetchClasses = async () => {
-    setLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    setIsSubmitting(true);
     try {
-      const { data, error } = await supabase.from('classes').select('*').order('created_at', { ascending: false });
-      if (error) {
-        console.error('Error fetching classes:', error);
-      } else if (data) {
-        setClasses(data);
-      }
+      const newClass = await createClass(user.id, formData);
+
+      mutate([newClass, ...(classes || [])] as any, { revalidate: false });
+
+      setShowDialog(false);
+      setFormData({ name: '', code: '', color: '#3b82f6', semester: '' });
+      toast.success('Class created successfully');
     } catch (error) {
-      console.error('Exception fetching classes:', error);
+      console.error('Error creating class:', error);
+      toast.error('Failed to create class');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-    await (supabase as any).from('classes').insert([{ ...formData, user_id: session.user.id }]);
-    setShowDialog(false);
-    fetchClasses();
-  };
-
   const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click
-    if (confirm('Delete this class?')) {
-      await supabase.from('classes').delete().eq('id', id);
-      fetchClasses();
+    e.stopPropagation();
+    if (!user || !confirm('Delete this class?')) return;
+
+    const previousClasses = classes;
+    mutate((classes as any[])?.filter((c: any) => c.id !== id) as any, { revalidate: false });
+
+    try {
+      await deleteClass(user.id, id);
+      toast.success('Class deleted');
+    } catch (error) {
+      console.error('Error deleting class:', error);
+      mutate(previousClasses as any, { revalidate: false });
+      toast.error('Failed to delete class');
     }
   };
 
@@ -109,7 +112,7 @@ export default function ClassesPage() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {classes.map((cls) => (
+          {classes?.map((cls: Class) => (
             <Card 
               key={cls.id} 
               onClick={() => router.push(`/classes/${cls.id}`)}

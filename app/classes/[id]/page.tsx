@@ -18,27 +18,27 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { FlashcardViewer } from '@/components/FlashcardViewer';
 import { QuizViewer } from '@/components/QuizViewer';
 import { toast } from 'sonner';
+import { useClass, useAssignments, useDocuments, createAssignment, updateAssignment, deleteDocument as deleteDocumentAction } from '@/hooks/use-classes';
 
 export default function ClassDetail() {
   const { id } = useParams();
   const router = useRouter();
   const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
-  
-  // Data State
-  const [classData, setClassData] = useState<any>(null);
-  const [assignments, setAssignments] = useState<any[]>([]);
-  const [documents, setDocuments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+
+  const classId = Array.isArray(id) ? id[0] : id;
+
+  const { classData, isLoading: classLoading } = useClass(classId);
+  const { assignments, isLoading: assignmentsLoading, mutate: mutateAssignments } = useAssignments(classId);
+  const { documents, isLoading: documentsLoading, mutate: mutateDocuments } = useDocuments(classId);
+
   const [uploadingFile, setUploadingFile] = useState(false);
-  
-  // Modal & Sheet State
+
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
   const [newAssign, setNewAssign] = useState({ title: '', due_date: '', type: 'Homework' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Exam Prep State
+
   const [selectedForStudy, setSelectedForStudy] = useState<string[]>([]);
   const [generatingGuide, setGeneratingGuide] = useState(false);
   const [studyGuide, setStudyGuide] = useState<string | null>(null);
@@ -47,64 +47,34 @@ export default function ClassDetail() {
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!authLoading && user) {
-      loadClassData();
-    } else if (!authLoading && !user) {
+    if (!authLoading && !user) {
       router.push('/login');
     }
-  }, [id, authLoading, user]);
-
-  const loadClassData = async () => {
-    setLoading(true);
-    try {
-      const classId = Array.isArray(id) ? id[0] : id;
-      const { data: cls, error: clsError } = await (supabase as any).from('classes').select('*').eq('id', classId).maybeSingle();
-      const { data: asg, error: asgError } = await (supabase as any).from('assignments').select('*').eq('class_id', classId).order('due_date', { ascending: true });
-      const { data: docs, error: docsError } = await (supabase as any).from('class_documents').select('*').eq('class_id', classId).order('upload_date', { ascending: false });
-
-      if (clsError) throw clsError;
-      if (asgError) throw asgError;
-      if (docsError) console.error('Error loading documents:', docsError);
-
-      setClassData(cls);
-      if (asg) setAssignments(asg);
-      if (docs) setDocuments(docs);
-    } catch (error: any) {
-      console.error('Error loading class data:', error);
-      toast.error('Failed to load class details');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [authLoading, user]);
 
   const addAssignment = async () => {
     if (!newAssign.title) {
       toast.error("Please enter a title");
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      
-      const classId = Array.isArray(id) ? id[0] : id;
-      
-      const { error } = await (supabase as any).from('assignments').insert([{
+      if (!user) return;
+
+      const newAssignmentData = await createAssignment(classId, {
         title: newAssign.title,
         due_date: newAssign.due_date || null,
         type: newAssign.type,
-        class_id: classId,
-        user_id: session.user.id,
+        user_id: user.id,
         completed: false
-      }]);
+      });
 
-      if (error) throw error;
+      mutateAssignments();
 
       toast.success("Assignment added successfully");
       setShowAssignModal(false);
       setNewAssign({ title: '', due_date: '', type: 'Homework' });
-      loadClassData(); 
     } catch (error: any) {
       console.error('Error adding assignment:', error);
       toast.error(error.message || "Failed to save assignment.");
@@ -115,11 +85,17 @@ export default function ClassDetail() {
 
   const toggleComplete = async (e: React.MouseEvent, aid: string, current: boolean) => {
     e.stopPropagation();
+
+    const previousAssignments = assignments;
+    mutateAssignments(
+      (assignments as any[]).map((a: any) => a.id === aid ? { ...a, completed: !current } : a) as any,
+      { revalidate: false }
+    );
+
     try {
-      const { error } = await (supabase as any).from('assignments').update({ completed: !current }).eq('id', aid);
-      if (error) throw error;
-      setAssignments(assignments.map(a => a.id === aid ? { ...a, completed: !current } : a));
+      await updateAssignment(classId, aid, { completed: !current });
     } catch (error) {
+      mutateAssignments(previousAssignments as any, { revalidate: false });
       toast.error("Failed to update status");
     }
   };
@@ -169,7 +145,7 @@ export default function ClassDetail() {
       if (dbError) throw dbError;
 
       toast.success('Document uploaded successfully! Processing will begin shortly.');
-      loadClassData();
+      mutateDocuments();
 
       fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-document`, {
         method: 'POST',
@@ -189,24 +165,21 @@ export default function ClassDetail() {
     }
   };
 
-  const deleteDocument = async (docId: string, filePath: string) => {
+  const handleDeleteDocument = async (docId: string, filePath: string) => {
     if (!confirm('Delete this document? This cannot be undone.')) return;
 
+    const previousDocuments = documents;
+    mutateDocuments(
+      (documents as any[]).filter((d: any) => d.id !== docId) as any,
+      { revalidate: false }
+    );
+
     try {
-      const { error: storageError } = await supabase.storage
-        .from('class-documents')
-        .remove([filePath]);
-
-      if (storageError) throw storageError;
-
-      const { error: dbError } = await (supabase as any).from('class_documents').delete().eq('id', docId);
-
-      if (dbError) throw dbError;
-
+      await deleteDocumentAction(classId, docId, filePath);
       toast.success('Document deleted');
-      setDocuments(documents.filter(d => d.id !== docId));
     } catch (error: any) {
       console.error('Error deleting document:', error);
+      mutateDocuments(previousDocuments as any, { revalidate: false });
       toast.error('Failed to delete document');
     }
   };
@@ -224,9 +197,9 @@ export default function ClassDetail() {
     setFlashcards([]);
     setQuizQuestions([]);
 
-    const selectedTitles = assignments
-      .filter(a => selectedForStudy.includes(a.id))
-      .map(a => `${a.title} (${a.type || 'Homework'})`)
+    const selectedTitles = (assignments as any[])
+      .filter((a: any) => selectedForStudy.includes(a.id))
+      .map((a: any) => `${a.title} (${a.type || 'Homework'})`)
       .join(', ');
 
     try {
@@ -296,7 +269,7 @@ Ensure correctAnswer is the index (0-3) of the correct option.`;
     }
   };
 
-  if (authLoading || (loading && !classData)) {
+  if (authLoading || (classLoading && !classData)) {
     return (
       <div className="h-full flex flex-col bg-slate-50">
         <div className="h-48 bg-white border-b border-slate-200 p-8 flex flex-col justify-end relative">
@@ -324,15 +297,15 @@ Ensure correctAnswer is the index (0-3) of the correct option.`;
     <div className="h-full flex flex-col bg-slate-50">
       {/* Header */}
       <div className="h-48 bg-white border-b border-slate-200 p-8 flex flex-col justify-end relative overflow-hidden shrink-0">
-        <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: classData.color }} />
+        <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: (classData as any)?.color }} />
         <Button variant="ghost" onClick={() => router.push('/classes')} className="absolute top-6 left-6 text-slate-500 hover:text-slate-800">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Classes
         </Button>
-        <h1 className="text-4xl font-bold text-slate-900">{classData.name}</h1>
+        <h1 className="text-4xl font-bold text-slate-900">{(classData as any)?.name}</h1>
         <p className="text-slate-500 mt-2 font-medium flex items-center gap-2">
-          <span className="bg-slate-100 px-2 py-1 rounded text-xs uppercase tracking-wider text-slate-600">{classData.code}</span>
+          <span className="bg-slate-100 px-2 py-1 rounded text-xs uppercase tracking-wider text-slate-600">{(classData as any)?.code}</span>
           <span>•</span>
-          <span>{classData.semester}</span>
+          <span>{(classData as any)?.semester}</span>
         </p>
       </div>
 
@@ -369,7 +342,7 @@ Ensure correctAnswer is the index (0-3) of the correct option.`;
             )}
 
             <div className="grid gap-3">
-              {assignments.map(a => (
+              {(assignments as any[]).map((a: any) => (
                 <Card 
                   key={a.id} 
                   onClick={() => setSelectedAssignment(a)}
@@ -457,7 +430,7 @@ Ensure correctAnswer is the index (0-3) of the correct option.`;
             )}
 
             <div className="grid gap-3">
-              {documents.map(doc => (
+              {(documents as any[]).map((doc: any) => (
                 <Card key={doc.id} className="p-4 flex items-center gap-4 bg-white border-slate-200 hover:shadow-md transition-all">
                   <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
                     <File className="w-5 h-5 text-red-600" />
@@ -493,7 +466,7 @@ Ensure correctAnswer is the index (0-3) of the correct option.`;
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => deleteDocument(doc.id, doc.file_path)}
+                    onClick={() => handleDeleteDocument(doc.id, doc.file_path)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -556,7 +529,7 @@ Ensure correctAnswer is the index (0-3) of the correct option.`;
 
               <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2">
                 {assignments.length === 0 && <p className="text-sm text-slate-400 italic text-center py-4">No assignments available.</p>}
-                {assignments.map(a => (
+                {(assignments as any[]).map((a: any) => (
                   <div key={a.id} className="flex items-center space-x-2 p-2 rounded hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
                     <Checkbox
                       id={`study-${a.id}`}
