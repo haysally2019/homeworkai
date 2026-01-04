@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
-import { 
-  MessageSquare, 
-  Plus, 
-  ChevronLeft, 
-  ChevronRight, 
-  LogOut, 
-  LayoutDashboard, 
+import { useAuth } from '@/lib/auth-context';
+import {
+  MessageSquare,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  LayoutDashboard,
   Settings,
   Sparkles
 } from 'lucide-react';
@@ -25,45 +26,29 @@ interface Class {
 
 export function Sidebar() {
   const [classes, setClasses] = useState<Class[]>([]);
-  const [credits, setCredits] = useState<number>(0);
-  const [isPro, setIsPro] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-  
+
+  const { user, credits, isPro } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
 
-  // Re-fetch data when path changes to ensure fresh data
   useEffect(() => {
-    fetchData();
-  }, [pathname]);
+    if (!user) return;
 
-  const fetchData = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    const fetchClasses = async () => {
+      const { data: classData } = await supabase
+        .from('classes')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .limit(10);
 
-    // Fetch Classes
-    const { data: classData } = await supabase
-      .from('classes')
-      .select('id, name')
-      .eq('user_id', session.user.id)
-      .limit(10);
+      if (classData) setClasses(classData);
+    };
 
-    if (classData) setClasses(classData);
-
-    // Fetch Credits
-    const { data: creditData } = await supabase
-      .from('users_credits')
-      .select('credits, is_pro')
-      .eq('id', session.user.id)
-      .maybeSingle();
-
-    if (creditData) {
-      setCredits(creditData.credits);
-      setIsPro(creditData.is_pro);
-    }
-  };
+    fetchClasses();
+  }, [user]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();

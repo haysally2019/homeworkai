@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Camera, Send, Loader2, LayoutDashboard } from 'lucide-react';
@@ -12,31 +12,25 @@ import { PaywallModal } from '@/components/PaywallModal';
 type Message = { role: 'user' | 'assistant'; content: string; image?: string; };
 
 export default function ChatPage() {
-  const [user, setUser] = useState<any>(null);
-  const [credits, setCredits] = useState<number>(0);
-  const [isPro, setIsPro] = useState(false);
+  const { user, credits, isPro, refreshCredits, loading: authLoading } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'solver' | 'tutor'>('solver');
   const [showPaywall, setShowPaywall] = useState(false);
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const supabase = createClient();
 
-  useEffect(() => { checkAuth(); }, []);
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { router.push('/login'); return; }
-    setUser(session.user);
-    const { data } = await supabase.from('users_credits').select('credits, is_pro').eq('id', session.user.id).maybeSingle();
-    if (data) { setCredits(data.credits); setIsPro(data.is_pro); }
-  };
 
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -50,6 +44,7 @@ export default function ChatPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() && !selectedImage) return;
+    if (!user) return;
 
     const userMsg: Message = { role: 'user', content: input, image: selectedImage || undefined };
     setMessages(prev => [...prev, userMsg]);
@@ -66,10 +61,9 @@ export default function ChatPage() {
 
       if (res.status === 402) { setShowPaywall(true); setLoading(false); return; }
       const data = await res.json();
-      
+
       setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
-      setCredits(data.remainingCredits);
-      setIsPro(data.isPro);
+      await refreshCredits();
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: "Something went wrong. Please try again." }]);
     } finally {
@@ -77,7 +71,7 @@ export default function ChatPage() {
     }
   };
 
-  if (!user) return <div className="h-full flex items-center justify-center bg-slate-50"><Loader2 className="w-8 h-8 animate-spin text-blue-500"/></div>;
+  if (authLoading || !user) return <div className="h-full flex items-center justify-center bg-slate-50"><Loader2 className="w-8 h-8 animate-spin text-blue-500"/></div>;
 
   return (
     <div className="flex flex-col h-full bg-slate-50 relative">

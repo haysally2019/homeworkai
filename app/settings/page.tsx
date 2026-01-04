@@ -1,39 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, Zap, Crown, GraduationCap, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<any>(null);
-  const [credits, setCredits] = useState<number>(0);
-  const [isPro, setIsPro] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getSession();
-      if (!user) return;
-      setUser(user);
-
-      const { data } = await supabase
-        .from('users_credits')
-        .select('credits, is_pro')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (data) {
-        setCredits(data.credits);
-        setIsPro(data.is_pro);
-      }
-      setLoading(false);
-    };
-    fetchData();
-  }, []);
+  const { user, credits, isPro, loading } = useAuth();
 
   const handleCheckout = (link: string) => {
     window.location.href = link;
