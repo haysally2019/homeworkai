@@ -94,17 +94,17 @@ export default function ClassDetail() {
       toast.success("Assignment added successfully");
       setShowAssignModal(false);
       setNewAssign({ title: '', due_date: '', type: 'Homework' });
-      loadClassData(); // Reload list instead of page reload
+      loadClassData(); 
     } catch (error: any) {
       console.error('Error adding assignment:', error);
-      toast.error(error.message || "Failed to save. Did you run the SQL migration?");
+      toast.error(error.message || "Failed to save assignment.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const toggleComplete = async (e: React.MouseEvent, aid: string, current: boolean) => {
-    e.stopPropagation(); // Prevent opening the sheet when clicking the checkbox
+    e.stopPropagation(); 
     try {
       const { error } = await supabase.from('assignments').update({ completed: !current }).eq('id', aid);
       if (error) throw error;
@@ -438,7 +438,7 @@ export default function ClassDetail() {
               <div className="grid grid-cols-2 gap-3">
                 <Card 
                   className="p-4 hover:border-blue-500 cursor-pointer transition-colors group"
-                  onClick={() => router.push(`/chat?mode=solver&context=${encodeURIComponent(selectedAssignment?.title)}`)}
+                  onClick={() => router.push(`/chat?mode=solver&assignmentId=${selectedAssignment.id}&context=${encodeURIComponent(selectedAssignment?.title)}`)}
                 >
                   <div className="mb-2 bg-blue-100 w-8 h-8 rounded-lg flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
                     <Sparkles className="w-4 h-4" />
@@ -449,7 +449,7 @@ export default function ClassDetail() {
 
                 <Card 
                   className="p-4 hover:border-purple-500 cursor-pointer transition-colors group"
-                  onClick={() => router.push(`/chat?mode=tutor&context=${encodeURIComponent(selectedAssignment?.title)}`)}
+                  onClick={() => router.push(`/chat?mode=tutor&assignmentId=${selectedAssignment.id}&context=${encodeURIComponent(selectedAssignment?.title)}`)}
                 >
                   <div className="mb-2 bg-purple-100 w-8 h-8 rounded-lg flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">
                     <BookOpen className="w-4 h-4" />
