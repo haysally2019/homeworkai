@@ -60,8 +60,8 @@ export async function POST(request: NextRequest) {
 
     // 1. USE THE STRONGEST THINKING MODEL
     // 'gemini-2.0-flash-thinking-exp' always points to the latest, strongest version.
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-thinking-exp', 
+     const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash', 
       systemInstruction: SYSTEM_PROMPT,
     });
 
