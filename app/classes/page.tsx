@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, BookOpen, Trash2, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, ArrowRight } from 'lucide-react';
 
 type Class = { id: string; name: string; code: string; color: string; semester: string; };
 
@@ -36,7 +36,7 @@ export default function ClassesPage() {
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+    e.stopPropagation(); // Prevent card click
     if (confirm('Delete this class?')) {
       await supabase.from('classes').delete().eq('id', id);
       fetchClasses();
