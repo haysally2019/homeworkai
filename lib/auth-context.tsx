@@ -61,10 +61,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (session?.user) {
           setUser(session.user);
-          await fetchCredits(session.user.id);
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            (async () => {
+              await fetchCredits(session.user.id);
+            })();
+          }
         } else {
           setUser(null);
           setCredits(0);

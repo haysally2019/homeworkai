@@ -11,7 +11,7 @@ export default function Home() {
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [router]);
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
