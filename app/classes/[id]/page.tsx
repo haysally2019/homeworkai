@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Clock } from 'lucide-react';
+import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Clock, Upload, File, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,9 @@ export default function ClassDetail() {
   // Data State
   const [classData, setClassData] = useState<any>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   
   // Modal & Sheet State
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -51,14 +53,17 @@ export default function ClassDetail() {
     setLoading(true);
     try {
       const classId = Array.isArray(id) ? id[0] : id;
-      const { data: cls, error: clsError } = await supabase.from('classes').select('*').eq('id', classId).maybeSingle();
-      const { data: asg, error: asgError } = await supabase.from('assignments').select('*').eq('class_id', classId).order('due_date', { ascending: true });
+      const { data: cls, error: clsError } = await (supabase as any).from('classes').select('*').eq('id', classId).maybeSingle();
+      const { data: asg, error: asgError } = await (supabase as any).from('assignments').select('*').eq('class_id', classId).order('due_date', { ascending: true });
+      const { data: docs, error: docsError } = await (supabase as any).from('class_documents').select('*').eq('class_id', classId).order('upload_date', { ascending: false });
 
       if (clsError) throw clsError;
       if (asgError) throw asgError;
+      if (docsError) console.error('Error loading documents:', docsError);
 
       setClassData(cls);
       if (asg) setAssignments(asg);
+      if (docs) setDocuments(docs);
     } catch (error: any) {
       console.error('Error loading class data:', error);
       toast.error('Failed to load class details');
@@ -80,7 +85,7 @@ export default function ClassDetail() {
       
       const classId = Array.isArray(id) ? id[0] : id;
       
-      const { error } = await supabase.from('assignments').insert([{
+      const { error } = await (supabase as any).from('assignments').insert([{
         title: newAssign.title,
         due_date: newAssign.due_date || null,
         type: newAssign.type,
@@ -104,13 +109,100 @@ export default function ClassDetail() {
   };
 
   const toggleComplete = async (e: React.MouseEvent, aid: string, current: boolean) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     try {
-      const { error } = await supabase.from('assignments').update({ completed: !current }).eq('id', aid);
+      const { error } = await (supabase as any).from('assignments').update({ completed: !current }).eq('id', aid);
       if (error) throw error;
       setAssignments(assignments.map(a => a.id === aid ? { ...a, completed: !current } : a));
     } catch (error) {
       toast.error("Failed to update status");
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      toast.error('Only PDF files are supported');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be less than 10MB');
+      return;
+    }
+
+    setUploadingFile(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const classId = Array.isArray(id) ? id[0] : id;
+      const filePath = `${session.user.id}/${classId}/${Date.now()}_${file.name}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('class-documents')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: insertedDoc, error: dbError } = await (supabase as any)
+        .from('class_documents')
+        .insert([{
+          class_id: classId,
+          user_id: session.user.id,
+          filename: file.name,
+          file_path: filePath,
+          file_type: file.type,
+          file_size: file.size,
+          processing_status: 'pending'
+        }])
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      toast.success('Document uploaded successfully! Processing will begin shortly.');
+      loadClassData();
+
+      fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-document`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ documentId: insertedDoc.id }),
+      }).catch(err => console.error('Error triggering processing:', err));
+
+      e.target.value = '';
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      toast.error(error.message || 'Failed to upload document');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const deleteDocument = async (docId: string, filePath: string) => {
+    if (!confirm('Delete this document? This cannot be undone.')) return;
+
+    try {
+      const { error: storageError } = await supabase.storage
+        .from('class-documents')
+        .remove([filePath]);
+
+      if (storageError) throw storageError;
+
+      const { error: dbError } = await (supabase as any).from('class_documents').delete().eq('id', docId);
+
+      if (dbError) throw dbError;
+
+      toast.success('Document deleted');
+      setDocuments(documents.filter(d => d.id !== docId));
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      toast.error('Failed to delete document');
     }
   };
 
@@ -197,8 +289,12 @@ export default function ClassDetail() {
         <Tabs defaultValue="assignments" className="w-full h-full flex flex-col">
           <TabsList className="bg-white border border-slate-200 p-1 mb-6 w-fit">
             <TabsTrigger value="assignments">Assignments</TabsTrigger>
+            <TabsTrigger value="materials">
+              <FileText className="w-4 h-4 mr-2" />
+              Materials
+            </TabsTrigger>
             <TabsTrigger value="examprep" className="data-[state=active]:bg-purple-50 data-[state=active]:text-purple-700">
-              <Sparkles className="w-4 h-4 mr-2" /> 
+              <Sparkles className="w-4 h-4 mr-2" />
               Exam Prep
             </TabsTrigger>
           </TabsList>
@@ -259,6 +355,117 @@ export default function ClassDetail() {
                 </Card>
               ))}
             </div>
+          </TabsContent>
+
+          <TabsContent value="materials" className="space-y-4 flex-1">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Class Materials</h2>
+                <p className="text-sm text-slate-500 mt-1">Upload syllabi, notes, and study materials for AI-enhanced help</p>
+              </div>
+              <label htmlFor="file-upload">
+                <Button
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                  size="sm"
+                  disabled={uploadingFile}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {uploadingFile ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
+                  ) : (
+                    <><Upload className="w-4 h-4 mr-2" /> Upload PDF</>
+                  )}
+                </Button>
+              </label>
+              <input
+                id="file-upload"
+                type="file"
+                accept=".pdf"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </div>
+
+            {documents.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-white rounded-xl border-2 border-slate-200 border-dashed">
+                <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+                  <Upload className="w-8 h-8 text-emerald-300" />
+                </div>
+                <p className="text-lg font-medium text-slate-600 mb-2">No materials uploaded yet</p>
+                <p className="text-sm text-slate-500 mb-4 max-w-md text-center">
+                  Upload your syllabus, class notes, or study materials to get AI responses tailored to your professor's teaching style
+                </p>
+                <Button
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                  variant="outline"
+                  className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                >
+                  <Upload className="w-4 h-4 mr-2" /> Upload Your First Document
+                </Button>
+              </div>
+            )}
+
+            <div className="grid gap-3">
+              {documents.map(doc => (
+                <Card key={doc.id} className="p-4 flex items-center gap-4 bg-white border-slate-200 hover:shadow-md transition-all">
+                  <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                    <File className="w-5 h-5 text-red-600" />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-slate-800 truncate">{doc.filename}</h3>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-xs text-slate-500">
+                        {new Date(doc.upload_date).toLocaleDateString()}
+                      </span>
+                      <span className="text-xs text-slate-400">•</span>
+                      <span className="text-xs text-slate-500">
+                        {(doc.file_size / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          doc.processing_status === 'completed' ? 'border-emerald-500 text-emerald-700 bg-emerald-50' :
+                          doc.processing_status === 'processing' ? 'border-blue-500 text-blue-700 bg-blue-50' :
+                          doc.processing_status === 'failed' ? 'border-red-500 text-red-700 bg-red-50' :
+                          'border-orange-500 text-orange-700 bg-orange-50'
+                        }
+                      >
+                        {doc.processing_status === 'completed' && '✓ Processed'}
+                        {doc.processing_status === 'processing' && '⟳ Processing'}
+                        {doc.processing_status === 'failed' && '✗ Failed'}
+                        {doc.processing_status === 'pending' && '⏱ Pending'}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteDocument(doc.id, doc.file_path)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </Card>
+              ))}
+            </div>
+
+            {documents.length > 0 && (
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-blue-900 mb-1">AI-Enhanced Learning</h4>
+                    <p className="text-sm text-blue-700">
+                      Your uploaded materials are being processed and will be used to provide context-aware responses when you ask questions or solve problems in this class.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="examprep" className="flex-1 flex flex-col md:flex-row gap-6 h-full min-h-[500px]">

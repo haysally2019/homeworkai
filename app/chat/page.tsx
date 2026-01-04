@@ -33,6 +33,7 @@ export default function ChatPage() {
   const [mode, setMode] = useState<'solver' | 'tutor'>(initialMode);
   const [showPaywall, setShowPaywall] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [classId, setClassId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,14 +44,24 @@ export default function ChatPage() {
     }
   }, [user, authLoading, router]);
 
-  // Load Conversation History
+  // Load Conversation History and Class Context
   useEffect(() => {
     if (!user) return;
 
     const loadConversation = async () => {
-      // 1. If we have an assignment ID, try to find an existing conversation
+      // 1. If we have an assignment ID, try to find an existing conversation and get classId
       if (assignmentId) {
-        const { data: existingConv } = await supabase
+        const { data: assignment } = await (supabase as any)
+          .from('assignments')
+          .select('class_id')
+          .eq('id', assignmentId)
+          .maybeSingle();
+
+        if (assignment) {
+          setClassId(assignment.class_id);
+        }
+
+        const { data: existingConv } = await (supabase as any)
           .from('conversations')
           .select('id')
           .eq('assignment_id', assignmentId)
@@ -60,14 +71,14 @@ export default function ChatPage() {
         if (existingConv) {
           setConversationId(existingConv.id);
           // Load messages
-          const { data: msgs } = await supabase
+          const { data: msgs } = await (supabase as any)
             .from('messages')
             .select('*')
             .eq('conversation_id', existingConv.id)
             .order('created_at', { ascending: true });
 
           if (msgs) {
-            setMessages(msgs.map(m => ({
+            setMessages(msgs.map((m: any) => ({
               role: m.role as 'user' | 'assistant',
               content: m.content,
               image: m.image_url || undefined
@@ -111,7 +122,7 @@ export default function ChatPage() {
       if (!currentConvId) {
         // Create new conversation
         const title = contextParam || (userMsg.content.slice(0, 30) + '...') || 'New Chat';
-        const { data: newConv, error: convError } = await supabase
+        const { data: newConv, error: convError } = await (supabase as any)
           .from('conversations')
           .insert({
             user_id: user.id,
@@ -120,29 +131,30 @@ export default function ChatPage() {
           })
           .select()
           .single();
-        
+
         if (convError) throw convError;
         currentConvId = newConv.id;
         setConversationId(newConv.id);
       }
 
       // 2. Save User Message
-      await supabase.from('messages').insert({
+      await (supabase as any).from('messages').insert({
         conversation_id: currentConvId,
         role: 'user',
         content: userMsg.content,
-        image_url: imgToSend ? '[Image Uploaded]' : null 
+        image_url: imgToSend ? '[Image Uploaded]' : null
       });
 
-      // 3. Call AI
+      // 3. Call AI with classId for RAG
       const res = await fetch('/api/solve', {
         method: 'POST',
-        body: JSON.stringify({ 
-          text: userMsg.content, 
-          imageBase64: imgToSend, 
-          mode, 
+        body: JSON.stringify({
+          text: userMsg.content,
+          imageBase64: imgToSend,
+          mode,
           userId: user.id,
-          context: contextParam 
+          context: contextParam,
+          classId: classId
         }),
       });
 
@@ -160,7 +172,7 @@ export default function ChatPage() {
       // 4. Save AI Response
       if (data.response) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
-        await supabase.from('messages').insert({
+        await (supabase as any).from('messages').insert({
             conversation_id: currentConvId,
             role: 'assistant',
             content: data.response

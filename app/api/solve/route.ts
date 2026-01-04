@@ -13,7 +13,7 @@ YOUR PROTOCOL:
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, imageBase64, mode, userId, context } = await request.json();
+    const { text, imageBase64, mode, userId, context, classId } = await request.json();
 
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -55,15 +55,45 @@ export async function POST(request: NextRequest) {
 
     // --- Gemini Logic ---
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
-    
+
+    let ragContext = '';
+
+    if (classId && text) {
+      try {
+        const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+        const embeddingResult = await embeddingModel.embedContent(text);
+        const queryEmbedding = embeddingResult.embedding.values;
+
+        const { data: relevantChunks, error: searchError } = await supabase.rpc(
+          'match_document_chunks',
+          {
+            query_embedding: JSON.stringify(queryEmbedding),
+            match_class_id: classId,
+            match_user_id: userId,
+            match_threshold: 0.3,
+            match_count: 3
+          }
+        );
+
+        if (!searchError && relevantChunks && relevantChunks.length > 0) {
+          ragContext = '\\n\\n--- RELEVANT CLASS MATERIALS ---\\n' +
+            relevantChunks.map((chunk: any) => chunk.content).join('\\n\\n---\\n\\n') +
+            '\\n--- END CLASS MATERIALS ---\\n\\n';
+        }
+      } catch (ragError) {
+        console.error('RAG retrieval error:', ragError);
+      }
+    }
+
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash', 
+      model: 'gemini-2.0-flash',
       systemInstruction: SYSTEM_PROMPT,
     });
 
     let prompt = mode === 'solver' ? `[SOLVER MODE] ${text}` : `[TUTOR MODE] ${text}`;
-    if (context) prompt += `\nContext: ${context}`;
-    
+    if (context) prompt += `\\nContext: ${context}`;
+    if (ragContext) prompt = ragContext + prompt;
+
     let result;
     if (imageBase64) {
       const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
