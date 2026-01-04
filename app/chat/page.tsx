@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge'; // <--- Added missing import
 import { Camera, Send, Loader2, LayoutDashboard, History } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { PaywallModal } from '@/components/PaywallModal';
