@@ -120,7 +120,6 @@ export default function ChatPage() {
       // 1. Ensure Conversation Exists
       let currentConvId = conversationId;
       if (!currentConvId) {
-        // Create new conversation
         const title = contextParam || (userMsg.content.slice(0, 30) + '...') || 'New Chat';
         const { data: newConv, error: convError } = await (supabase as any)
           .from('conversations')
@@ -137,15 +136,51 @@ export default function ChatPage() {
         setConversationId(newConv.id);
       }
 
-      // 2. Save User Message
+      // 2. Upload Image to Storage if present
+      let imageUrl = null;
+      if (imgToSend) {
+        try {
+          const base64Data = imgToSend.split(',')[1];
+          const mimeType = imgToSend.split(',')[0].split(':')[1].split(';')[0];
+          const extension = mimeType.split('/')[1];
+
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: mimeType });
+
+          const fileName = `${Date.now()}.${extension}`;
+          const filePath = `${user.id}/${currentConvId}/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('chat-images')
+            .upload(filePath, blob);
+
+          if (uploadError) throw uploadError;
+
+          const { data: urlData } = supabase.storage
+            .from('chat-images')
+            .getPublicUrl(filePath);
+
+          imageUrl = urlData.publicUrl;
+        } catch (uploadErr) {
+          console.error('Image upload failed:', uploadErr);
+          toast.error('Failed to upload image');
+        }
+      }
+
+      // 3. Save User Message with Image URL
       await (supabase as any).from('messages').insert({
         conversation_id: currentConvId,
         role: 'user',
         content: userMsg.content,
-        image_url: imgToSend ? '[Image Uploaded]' : null
+        image_url: imageUrl
       });
 
-      // 3. Call AI with classId for RAG
+      // 4. Call AI with classId for RAG
       const res = await fetch('/api/solve', {
         method: 'POST',
         body: JSON.stringify({
@@ -169,7 +204,7 @@ export default function ChatPage() {
       
       const data = await res.json();
 
-      // 4. Save AI Response
+      // 5. Save AI Response
       if (data.response) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
         await (supabase as any).from('messages').insert({
@@ -250,14 +285,23 @@ export default function ChatPage() {
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-4 shadow-sm ${
-              m.role === 'user' 
-                ? 'bg-blue-600 text-white rounded-br-none' 
+              m.role === 'user'
+                ? 'bg-blue-600 text-white rounded-br-none'
                 : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
             }`}>
-              {m.image && <div className="text-xs opacity-50 mb-1 flex items-center gap-1"><Camera className="w-3 h-3"/> Image included</div>}
-              {m.image && m.image.startsWith('data:') && <img src={m.image} alt="Upload" className="rounded-lg mb-3 max-h-60 object-cover bg-black/10" />}
-              
-              {/* Pass the role to the renderer to fix the text color issue */}
+              {m.image && (
+                <>
+                  <div className="text-xs opacity-50 mb-1 flex items-center gap-1">
+                    <Camera className="w-3 h-3"/> Image
+                  </div>
+                  <img
+                    src={m.image}
+                    alt="Upload"
+                    className="rounded-lg mb-3 max-h-60 object-cover bg-black/10 w-full"
+                  />
+                </>
+              )}
+
               <MessageRenderer content={m.content} role={m.role} />
             </div>
           </div>
