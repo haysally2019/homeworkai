@@ -28,15 +28,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   const fetchCredits = async (userId: string) => {
-    const { data } = await supabase
-      .from('users_credits')
-      .select('credits, is_pro')
-      .eq('id', userId)
-      .maybeSingle();
+    try {
+      const { data, error } = await (supabase as any)
+        .from('users_credits')
+        .select('credits, is_pro')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (data) {
-      setCredits(data.credits);
-      setIsPro(data.is_pro);
+      if (error) {
+        console.error('Error fetching credits:', error);
+        return;
+      }
+
+      if (data) {
+        setCredits(data.credits);
+        setIsPro(data.is_pro);
+      }
+    } catch (error) {
+      console.error('Exception fetching credits:', error);
     }
   };
 
@@ -48,14 +57,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        setUser(session.user);
-        await fetchCredits(session.user.id);
+        if (error) {
+          console.error('Error getting session:', error);
+          setLoading(false);
+          return;
+        }
+
+        if (session?.user) {
+          setUser(session.user);
+          await fetchCredits(session.user.id);
+        }
+      } catch (error) {
+        console.error('Exception in initAuth:', error);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     initAuth();
@@ -74,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setCredits(0);
           setIsPro(false);
         }
+        setLoading(false);
       }
     );
 

@@ -18,7 +18,7 @@ export default function ClassDetail() {
   const { user, loading: authLoading } = useAuth();
   const [classData, setClassData] = useState<any>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [newAssign, setNewAssign] = useState({ title: '', due_date: '' });
 
@@ -26,30 +26,49 @@ export default function ClassDetail() {
     if (!authLoading && user) {
       const load = async () => {
         setLoading(true);
-        const { data: cls } = await supabase.from('classes').select('*').eq('id', id).maybeSingle();
-        const { data: asg } = await supabase.from('assignments').select('*').eq('class_id', id).order('due_date');
-        setClassData(cls);
-        if (asg) setAssignments(asg);
-        setLoading(false);
+        try {
+          const classId = Array.isArray(id) ? id[0] : id;
+          const { data: cls, error: clsError } = await supabase.from('classes').select('*').eq('id', classId).maybeSingle();
+          const { data: asg, error: asgError } = await supabase.from('assignments').select('*').eq('class_id', classId).order('due_date');
+
+          if (clsError) console.error('Error fetching class:', clsError);
+          if (asgError) console.error('Error fetching assignments:', asgError);
+
+          setClassData(cls);
+          if (asg) setAssignments(asg);
+        } catch (error) {
+          console.error('Exception loading class data:', error);
+        } finally {
+          setLoading(false);
+        }
       };
       load();
+    } else if (!authLoading && !user) {
+      router.push('/login');
     }
   }, [id, authLoading, user]);
 
   const addAssignment = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-    await supabase.from('assignments').insert([{ ...newAssign, class_id: id, user_id: session.user.id }]);
+    const classId = Array.isArray(id) ? id[0] : id;
+    await (supabase as any).from('assignments').insert([{
+      title: newAssign.title,
+      due_date: newAssign.due_date || null,
+      class_id: classId,
+      user_id: session.user.id,
+      completed: false
+    }]);
     setShowAssignModal(false);
-    window.location.reload(); // Simple reload to refresh list
+    window.location.reload();
   };
 
   const toggleComplete = async (aid: string, current: boolean) => {
-    await supabase.from('assignments').update({ completed: !current }).eq('id', aid);
+    await (supabase as any).from('assignments').update({ completed: !current }).eq('id', aid);
     setAssignments(assignments.map(a => a.id === aid ? { ...a, completed: !current } : a));
   };
 
-  if (authLoading || loading || !classData) {
+  if (authLoading || (loading && !classData)) {
     return (
       <div className="h-full flex flex-col bg-slate-50">
         <div className="h-48 bg-white border-b border-slate-200 p-8 flex flex-col justify-end relative">
@@ -72,6 +91,10 @@ export default function ClassDetail() {
         </div>
       </div>
     );
+  }
+
+  if (!user || !classData) {
+    return null;
   }
 
   return (

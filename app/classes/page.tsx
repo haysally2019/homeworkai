@@ -15,7 +15,7 @@ type Class = { id: string; name: string; code: string; color: string; semester: 
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [formData, setFormData] = useState({ name: '', code: '', color: '#3b82f6', semester: '' });
   const router = useRouter();
@@ -25,21 +25,32 @@ export default function ClassesPage() {
   useEffect(() => {
     if (!authLoading && user) {
       fetchClasses();
+    } else if (!authLoading && !user) {
+      router.push('/login');
     }
   }, [authLoading, user]);
 
   const fetchClasses = async () => {
     setLoading(true);
-    const { data } = await supabase.from('classes').select('*').order('created_at', { ascending: false });
-    if (data) setClasses(data);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.from('classes').select('*').order('created_at', { ascending: false });
+      if (error) {
+        console.error('Error fetching classes:', error);
+      } else if (data) {
+        setClasses(data);
+      }
+    } catch (error) {
+      console.error('Exception fetching classes:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-    await supabase.from('classes').insert([{ ...formData, user_id: session.user.id }]);
+    await (supabase as any).from('classes').insert([{ ...formData, user_id: session.user.id }]);
     setShowDialog(false);
     fetchClasses();
   };
@@ -52,7 +63,7 @@ export default function ClassesPage() {
     }
   };
 
-  if (authLoading || loading) {
+  if (authLoading) {
     return (
       <div className="h-full overflow-y-auto bg-slate-50 p-8">
         <div className="max-w-6xl mx-auto">
@@ -78,6 +89,10 @@ export default function ClassesPage() {
         </div>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   return (
