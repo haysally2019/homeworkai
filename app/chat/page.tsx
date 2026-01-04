@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge'; // <--- Added missing import
+import { Badge } from '@/components/ui/badge';
 import { Camera, Send, Loader2, LayoutDashboard, History } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { PaywallModal } from '@/components/PaywallModal';
@@ -115,7 +115,7 @@ export default function ChatPage() {
           .from('conversations')
           .insert({
             user_id: user.id,
-            assignment_id: assignmentId || null, // Link to assignment if present
+            assignment_id: assignmentId || null,
             title: title
           })
           .select()
@@ -131,8 +131,6 @@ export default function ChatPage() {
         conversation_id: currentConvId,
         role: 'user',
         content: userMsg.content,
-        // Note: For a real app, upload image to storage and save URL. 
-        // Here we leave it null or store text marker as we don't have storage bucket setup.
         image_url: imgToSend ? '[Image Uploaded]' : null 
       });
 
@@ -144,13 +142,16 @@ export default function ChatPage() {
           imageBase64: imgToSend, 
           mode, 
           userId: user.id,
-          context: contextParam // Pass assignment context to AI
+          context: contextParam 
         }),
       });
 
+      // --- HANDLE OUT OF CREDITS ---
       if (res.status === 402) { 
         setShowPaywall(true); 
         setLoading(false); 
+        // Remove the user message we just optimistically added if it failed? 
+        // Or leave it. Usually leaving it is fine so they can retry.
         return; 
       }
       
@@ -165,6 +166,8 @@ export default function ChatPage() {
             content: data.response
         });
         await refreshCredits();
+      } else {
+        throw new Error("No response from AI");
       }
 
     } catch (err) {
@@ -241,7 +244,9 @@ export default function ChatPage() {
             }`}>
               {m.image && <div className="text-xs opacity-50 mb-1 flex items-center gap-1"><Camera className="w-3 h-3"/> Image included</div>}
               {m.image && m.image.startsWith('data:') && <img src={m.image} alt="Upload" className="rounded-lg mb-3 max-h-60 object-cover bg-black/10" />}
-              <MessageRenderer content={m.content} />
+              
+              {/* Pass the role to the renderer to fix the text color issue */}
+              <MessageRenderer content={m.content} role={m.role} />
             </div>
           </div>
         ))}
