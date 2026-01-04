@@ -18,31 +18,30 @@ export function PaywallModal({ open, onClose }: PaywallModalProps) {
   const plans = [
     {
       name: 'Monthly',
-      price: '$5.99', // LOWER PRICE
+      price: '$9.99', // Updated to ~$10
       period: '/mo',
       icon: Zap,
       link: 'https://buy.stripe.com/monthly_placeholder',
-      // UPGRADED FEATURES: Since Gemini is cheap, give them Unlimited immediately
-      features: ['Unlimited AI Solves', 'Tutor Mode Access', 'Detailed Step-by-Step'],
+      features: ['Unlimited AI Solves', 'Tutor Mode Access', 'Step-by-step logic'],
       popular: false,
     },
     {
       name: 'Semester Pass',
-      price: '$19.99', // MASSIVE DISCOUNT
+      price: '$24.99', // Updated to ~$25
       period: '/one-time',
       icon: GraduationCap,
       link: 'https://buy.stripe.com/semester_placeholder',
-      features: ['Valid for 4 Months', 'Exam Prep Generator', 'Priority Support', 'Save 25% vs Monthly'],
+      features: ['Valid for 4 Months', 'Exam Prep Generator', 'Priority Support', 'One-time payment'],
       popular: true,
       color: 'blue',
     },
     {
       name: 'Annual',
-      price: '$39.99', // "NO BRAINER" PRICE
+      price: '$39.99',
       period: '/year',
       icon: Crown,
       link: 'https://buy.stripe.com/annual_placeholder',
-      features: ['Best Value (Save 50%)', 'All Pro features', 'Beta access to new tools'],
+      features: ['Best Value (Save 65%)', 'All Pro features', 'Beta access to new tools'],
       popular: false,
     }
   ];
@@ -55,7 +54,7 @@ export function PaywallModal({ open, onClose }: PaywallModalProps) {
             Unlock Unlimited Learning
           </DialogTitle>
           <DialogDescription className="text-slate-500 text-lg">
-            Get 100% accurate, unlimited homework help for less than a coffee.
+            Get 100% accurate, unlimited homework help.
           </DialogDescription>
         </DialogHeader>
 
