@@ -97,7 +97,7 @@ export default function ClassDetail() {
       loadClassData(); // Reload list instead of page reload
     } catch (error: any) {
       console.error('Error adding assignment:', error);
-      toast.error(error.message || "Failed to save assignment. Did you run the migration?");
+      toast.error(error.message || "Failed to save. Did you run the SQL migration?");
     } finally {
       setIsSubmitting(false);
     }
