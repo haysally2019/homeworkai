@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (!userCredits) {
+      // Initialize if missing
       const { data: newCredits } = await supabase
         .from('users_credits')
         .insert({ id: userId, credits: 3, is_pro: false })
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load user credits' }, { status: 500 });
     }
 
+    // THIS IS THE CHECK: If not pro and 0 credits, STOP.
     if (!userCredits.is_pro && userCredits.credits < 1) {
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
@@ -54,17 +56,16 @@ export async function POST(request: NextRequest) {
     // --- Gemini Logic ---
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
     
-    // FIXED: Use the stable Flash model
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash', 
       systemInstruction: SYSTEM_PROMPT,
     });
 
     let prompt = mode === 'solver' ? `[SOLVER MODE] ${text}` : `[TUTOR MODE] ${text}`;
+    if (context) prompt += `\nContext: ${context}`;
     
     let result;
     if (imageBase64) {
-      // Clean Base64 to prevent SDK errors
       const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
       result = await model.generateContent([prompt, { inlineData: { data: cleanBase64, mimeType: 'image/jpeg' } }]);
     } else {
