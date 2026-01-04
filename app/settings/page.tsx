@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, Zap, Crown, GraduationCap, Loader as Loader2 } from 'lucide-react';
+import { Check, Zap, Crown, GraduationCap, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export default function SettingsPage() {
@@ -16,14 +16,14 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      setUser(session.user);
+      const { data: { user } } = await supabase.auth.getSession();
+      if (!user) return;
+      setUser(user);
 
       const { data } = await supabase
         .from('users_credits')
         .select('credits, is_pro')
-        .eq('id', session.user.id)
+        .eq('id', user.id)
         .maybeSingle();
 
       if (data) {
@@ -51,7 +51,7 @@ export default function SettingsPage() {
     },
     {
       name: 'Semester Pass',
-      price: '$39.99',
+      price: '$24.99', // Updated Price
       period: '/one-time',
       icon: GraduationCap,
       link: 'https://buy.stripe.com/semester_placeholder', // REPLACE WITH YOUR LINK
@@ -62,7 +62,7 @@ export default function SettingsPage() {
     },
     {
       name: 'Annual Pro',
-      price: '$79.99',
+      price: '$39.99',
       period: '/year',
       icon: Crown,
       link: 'https://buy.stripe.com/annual_placeholder', // REPLACE WITH YOUR LINK
