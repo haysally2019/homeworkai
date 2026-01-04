@@ -8,11 +8,16 @@ import 'katex/dist/katex.min.css';
 
 interface MessageRendererProps {
   content: string;
+  role?: 'user' | 'assistant'; // Add role prop to determine styling
 }
 
-export function MessageRenderer({ content }: MessageRendererProps) {
+export function MessageRenderer({ content, role = 'assistant' }: MessageRendererProps) {
+  // If it's the user (blue bubble), we want inverted (white) text.
+  // If it's the assistant (white bubble), we want standard (dark) text.
+  const proseClass = role === 'user' ? 'prose-invert' : 'prose-neutral';
+
   return (
-    <div className="prose prose-invert max-w-none">
+    <div className={`prose ${proseClass} max-w-none leading-relaxed`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath, remarkGfm]}
         rehypePlugins={[rehypeKatex]}
@@ -21,26 +26,40 @@ export function MessageRenderer({ content }: MessageRendererProps) {
           ul: ({ children }) => <ul className="list-disc list-inside mb-2">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
           li: ({ children }) => <li className="mb-1">{children}</li>,
-          code: ({ inline, children, ...props }: any) =>
-            inline ? (
-              <code className="bg-gray-700 px-1.5 py-0.5 rounded text-sm" {...props}>
-                {children}
-              </code>
+          // Custom code block styling
+          code: ({ inline, className, children, ...props }: any) => {
+            const match = /language-(\w+)/.exec(className || '');
+            return !inline ? (
+              <div className="bg-slate-900 text-slate-50 rounded-lg p-3 my-2 overflow-x-auto text-sm">
+                <code className={className} {...props}>
+                  {children}
+                </code>
+              </div>
             ) : (
-              <code className="block bg-gray-700 p-3 rounded-lg my-2 overflow-x-auto" {...props}>
+              <code className={`${role === 'user' ? 'bg-blue-700/50' : 'bg-slate-100 text-slate-800'} px-1.5 py-0.5 rounded text-sm font-medium`} {...props}>
                 {children}
               </code>
-            ),
-          pre: ({ children }) => <div className="my-2">{children}</div>,
+            );
+          },
+          // Headings
           h1: ({ children }) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
           h2: ({ children }) => <h2 className="text-lg font-bold mb-2">{children}</h2>,
           h3: ({ children }) => <h3 className="text-base font-bold mb-2">{children}</h3>,
-          strong: ({ children }) => <strong className="font-bold text-emerald-400">{children}</strong>,
-          em: ({ children }) => <em className="italic">{children}</em>,
+          // Links
           a: ({ children, href }) => (
-            <a href={href} className="text-emerald-500 hover:underline" target="_blank" rel="noopener noreferrer">
+            <a 
+              href={href} 
+              className="text-blue-500 hover:underline font-medium" 
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
               {children}
             </a>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-4 border-slate-300 pl-4 my-2 italic">
+              {children}
+            </blockquote>
           ),
         }}
       >
