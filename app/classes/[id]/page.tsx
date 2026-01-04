@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Clock, Upload, File, Trash2 } from 'lucide-react';
+import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Clock, Upload, File, Trash2, Layers, HelpCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { FlashcardViewer } from '@/components/FlashcardViewer';
+import { QuizViewer } from '@/components/QuizViewer';
 import { toast } from 'sonner';
 
 export default function ClassDetail() {
@@ -40,6 +42,9 @@ export default function ClassDetail() {
   const [selectedForStudy, setSelectedForStudy] = useState<string[]>([]);
   const [generatingGuide, setGeneratingGuide] = useState(false);
   const [studyGuide, setStudyGuide] = useState<string | null>(null);
+  const [studyMode, setStudyMode] = useState<'flashcards' | 'quiz'>('flashcards');
+  const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -216,6 +221,8 @@ export default function ClassDetail() {
     if (selectedForStudy.length === 0) return;
     setGeneratingGuide(true);
     setStudyGuide(null);
+    setFlashcards([]);
+    setQuizQuestions([]);
 
     const selectedTitles = assignments
       .filter(a => selectedForStudy.includes(a.id))
@@ -223,23 +230,67 @@ export default function ClassDetail() {
       .join(', ');
 
     try {
+      let prompt = '';
+      if (studyMode === 'flashcards') {
+        prompt = `Generate exactly 10 flashcards for the following topics/assignments: ${selectedTitles}.
+
+Return ONLY a valid JSON array in this exact format (no markdown, no code blocks, just pure JSON):
+[
+  {"question": "What is...", "answer": "..."},
+  {"question": "Define...", "answer": "..."}
+]
+
+Make the questions clear and concise. Make the answers informative but not too long.`;
+      } else {
+        prompt = `Generate exactly 8 multiple choice quiz questions for the following topics/assignments: ${selectedTitles}.
+
+Return ONLY a valid JSON array in this exact format (no markdown, no code blocks, just pure JSON):
+[
+  {
+    "question": "What is...",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": 0,
+    "explanation": "The correct answer is A because..."
+  }
+]
+
+Ensure correctAnswer is the index (0-3) of the correct option.`;
+      }
+
       const res = await fetch('/api/solve', {
         method: 'POST',
-        body: JSON.stringify({ 
-          text: `Create a comprehensive exam preparation guide for the following topics/assignments: ${selectedTitles}. Include key definitions, potential quiz questions, and a summary of concepts. Format nicely in Markdown.`, 
+        body: JSON.stringify({
+          text: prompt,
           mode: 'tutor',
-          userId: user?.id 
+          userId: user?.id,
+          classId: Array.isArray(id) ? id[0] : id
         }),
       });
-      
+
       const data = await res.json();
       if (data.response) {
-        setStudyGuide(data.response);
+        try {
+          let jsonStr = data.response.trim();
+          jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+          jsonStr = jsonStr.replace(/^[^[\{]*/, '').replace(/[^}\]]*$/, '');
+
+          const parsed = JSON.parse(jsonStr);
+
+          if (studyMode === 'flashcards') {
+            setFlashcards(parsed);
+          } else {
+            setQuizQuestions(parsed);
+          }
+        } catch (parseError) {
+          console.error('Failed to parse JSON:', parseError, data.response);
+          toast.error("Failed to parse study material. Please try again.");
+        }
       } else {
         throw new Error("No response from AI");
       }
     } catch (e) {
-      toast.error("Failed to generate study guide");
+      console.error(e);
+      toast.error("Failed to generate study material");
     } finally {
       setGeneratingGuide(false);
     }
@@ -476,15 +527,39 @@ export default function ClassDetail() {
                   <BookOpen className="w-4 h-4 text-purple-600" />
                   Select Material
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">Choose assignments to include in your study guide.</p>
+                <p className="text-xs text-slate-500 mt-1">Choose assignments to include in your study material.</p>
               </div>
-              
+
+              <div className="mb-4">
+                <label className="text-xs font-medium text-slate-600 mb-2 block">Study Mode</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={studyMode === 'flashcards' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStudyMode('flashcards')}
+                    className={studyMode === 'flashcards' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+                  >
+                    <Layers className="w-3 h-3 mr-1" />
+                    Flashcards
+                  </Button>
+                  <Button
+                    variant={studyMode === 'quiz' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStudyMode('quiz')}
+                    className={studyMode === 'quiz' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                  >
+                    <HelpCircle className="w-3 h-3 mr-1" />
+                    Quiz
+                  </Button>
+                </div>
+              </div>
+
               <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2">
                 {assignments.length === 0 && <p className="text-sm text-slate-400 italic text-center py-4">No assignments available.</p>}
                 {assignments.map(a => (
                   <div key={a.id} className="flex items-center space-x-2 p-2 rounded hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
-                    <Checkbox 
-                      id={`study-${a.id}`} 
+                    <Checkbox
+                      id={`study-${a.id}`}
                       checked={selectedForStudy.includes(a.id)}
                       onCheckedChange={() => toggleStudySelection(a.id)}
                     />
@@ -499,8 +574,8 @@ export default function ClassDetail() {
                 ))}
               </div>
 
-              <Button 
-                onClick={generateStudyGuide} 
+              <Button
+                onClick={generateStudyGuide}
                 disabled={selectedForStudy.length === 0 || generatingGuide}
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
               >
@@ -510,37 +585,57 @@ export default function ClassDetail() {
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4 mr-2" /> Generate Study Guide
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate {studyMode === 'flashcards' ? 'Flashcards' : 'Quiz'}
                   </>
                 )}
               </Button>
             </Card>
 
-            {/* Main: Study Guide Output */}
-            <Card className="flex-1 bg-white border-slate-200 p-6 overflow-y-auto min-h-[500px]">
-              {!studyGuide && !generatingGuide && (
+            {/* Main: Interactive Study Output */}
+            <Card className="flex-1 bg-white border-slate-200 p-6 overflow-hidden min-h-[500px]">
+              {!flashcards.length && !quizQuestions.length && !generatingGuide && (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center p-8">
                   <div className="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center mb-4">
                     <Sparkles className="w-8 h-8 text-purple-200" />
                   </div>
-                  <h3 className="text-lg font-medium text-slate-600 mb-2">AI Exam Prep</h3>
-                  <p className="max-w-sm mx-auto text-sm">Select relevant assignments from the left list and click "Generate" to create a custom study guide tailored to your material.</p>
+                  <h3 className="text-lg font-medium text-slate-600 mb-2">Interactive Exam Prep</h3>
+                  <p className="max-w-sm mx-auto text-sm mb-4">
+                    Select assignments and choose between flashcards or quiz mode to create personalized study materials.
+                  </p>
+                  <div className="flex gap-3 text-xs text-slate-500">
+                    <div className="flex items-center gap-1">
+                      <Layers className="w-4 h-4 text-emerald-500" />
+                      <span>Flashcards for memorization</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <HelpCircle className="w-4 h-4 text-blue-500" />
+                      <span>Quiz to test knowledge</span>
+                    </div>
+                  </div>
                 </div>
               )}
               {generatingGuide && (
                 <div className="h-full flex flex-col items-center justify-center text-purple-600">
                   <Loader2 className="w-10 h-10 animate-spin mb-4" />
-                  <p className="animate-pulse font-medium">Analyzing your assignments...</p>
+                  <p className="animate-pulse font-medium">
+                    Creating your {studyMode === 'flashcards' ? 'flashcards' : 'quiz'}...
+                  </p>
                 </div>
               )}
-              {studyGuide && (
-                <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
-                  <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
-                    <h2 className="text-2xl font-bold text-slate-800">Study Guide</h2>
-                    <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200">AI Generated</Badge>
-                  </div>
-                  <MessageRenderer content={studyGuide} />
-                </div>
+              {flashcards.length > 0 && studyMode === 'flashcards' && (
+                <FlashcardViewer
+                  flashcards={flashcards}
+                  onRegenerate={generateStudyGuide}
+                  isGenerating={generatingGuide}
+                />
+              )}
+              {quizQuestions.length > 0 && studyMode === 'quiz' && (
+                <QuizViewer
+                  questions={quizQuestions}
+                  onRegenerate={generateStudyGuide}
+                  isGenerating={generatingGuide}
+                />
               )}
             </Card>
           </TabsContent>
