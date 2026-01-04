@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,16 +15,24 @@ type Class = { id: string; name: string; code: string; color: string; semester: 
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [formData, setFormData] = useState({ name: '', code: '', color: '#3b82f6', semester: '' });
   const router = useRouter();
   const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
 
-  useEffect(() => { fetchClasses(); }, []);
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchClasses();
+    }
+  }, [authLoading, user]);
 
   const fetchClasses = async () => {
+    setLoading(true);
     const { data } = await supabase.from('classes').select('*').order('created_at', { ascending: false });
     if (data) setClasses(data);
+    setLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,6 +51,34 @@ export default function ClassesPage() {
       fetchClasses();
     }
   };
+
+  if (authLoading || loading) {
+    return (
+      <div className="h-full overflow-y-auto bg-slate-50 p-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Academic Dashboard</h1>
+              <p className="text-slate-500 mt-1">Manage your courses and assignments</p>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="border-slate-200 bg-white animate-pulse">
+                <CardHeader className="pb-2">
+                  <div className="h-6 bg-slate-200 rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-slate-200 rounded w-1/2" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-4 bg-slate-200 rounded w-1/3 mt-4" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-slate-50 p-8">

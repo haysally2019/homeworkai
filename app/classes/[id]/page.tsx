@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,20 +15,26 @@ export default function ClassDetail() {
   const { id } = useParams();
   const router = useRouter();
   const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
   const [classData, setClassData] = useState<any>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [newAssign, setNewAssign] = useState({ title: '', due_date: '' });
 
   useEffect(() => {
-    const load = async () => {
-      const { data: cls } = await supabase.from('classes').select('*').eq('id', id).single();
-      const { data: asg } = await supabase.from('assignments').select('*').eq('class_id', id).order('due_date');
-      setClassData(cls);
-      if (asg) setAssignments(asg);
-    };
-    load();
-  }, [id]);
+    if (!authLoading && user) {
+      const load = async () => {
+        setLoading(true);
+        const { data: cls } = await supabase.from('classes').select('*').eq('id', id).maybeSingle();
+        const { data: asg } = await supabase.from('assignments').select('*').eq('class_id', id).order('due_date');
+        setClassData(cls);
+        if (asg) setAssignments(asg);
+        setLoading(false);
+      };
+      load();
+    }
+  }, [id, authLoading, user]);
 
   const addAssignment = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -42,7 +49,30 @@ export default function ClassDetail() {
     setAssignments(assignments.map(a => a.id === aid ? { ...a, completed: !current } : a));
   };
 
-  if (!classData) return <div className="p-8">Loading...</div>;
+  if (authLoading || loading || !classData) {
+    return (
+      <div className="h-full flex flex-col bg-slate-50">
+        <div className="h-48 bg-white border-b border-slate-200 p-8 flex flex-col justify-end relative">
+          <div className="absolute top-0 left-0 w-full h-2 bg-slate-200 animate-pulse" />
+          <Button variant="ghost" onClick={() => router.push('/classes')} className="absolute top-6 left-6 text-slate-500">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+          </Button>
+          <div className="h-10 bg-slate-200 rounded w-1/2 mb-2 animate-pulse" />
+          <div className="h-6 bg-slate-200 rounded w-1/3 animate-pulse" />
+        </div>
+        <div className="flex-1 p-8 max-w-5xl mx-auto w-full">
+          <div className="h-8 bg-slate-200 rounded w-1/4 mb-6 animate-pulse" />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="p-4 bg-white border-slate-200 animate-pulse">
+                <div className="h-6 bg-slate-200 rounded w-3/4" />
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
