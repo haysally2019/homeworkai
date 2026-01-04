@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Camera, Send, Loader2, LayoutDashboard, History } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { PaywallModal } from '@/components/PaywallModal';
+import { MathToolbar } from '@/components/MathToolbar';
 import { toast } from 'sonner';
 
 type Message = { role: 'user' | 'assistant'; content: string; image?: string; };
@@ -37,6 +38,7 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -102,6 +104,28 @@ export default function ChatPage() {
       reader.onloadend = () => setSelectedImage(reader.result as string);
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleInsertLatex = (latex: string, cursorOffset?: number) => {
+    if (!inputRef.current) return;
+
+    const start = inputRef.current.selectionStart || 0;
+    const end = inputRef.current.selectionEnd || 0;
+    const currentText = input;
+
+    const before = currentText.substring(0, start);
+    const after = currentText.substring(end);
+    const newText = before + latex + after;
+
+    setInput(newText);
+
+    setTimeout(() => {
+      if (inputRef.current) {
+        const newCursorPos = start + latex.length + (cursorOffset || 0);
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -318,8 +342,10 @@ export default function ChatPage() {
       </main>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 w-full p-4 bg-white/80 backdrop-blur border-t border-slate-200">
-        <form onSubmit={handleSubmit} className="relative max-w-3xl mx-auto flex gap-3 items-end">
+      <div className="absolute bottom-0 w-full bg-white/80 backdrop-blur border-t border-slate-200">
+        <MathToolbar onInsert={handleInsertLatex} />
+        <div className="p-4">
+          <form onSubmit={handleSubmit} className="relative max-w-3xl mx-auto flex gap-3 items-end">
           {selectedImage && (
             <div className="absolute bottom-16 left-0 bg-white p-2 rounded-xl shadow-lg border border-slate-200 animate-in slide-in-from-bottom-2">
               <img src={selectedImage} alt="Preview" className="h-20 rounded-lg" />
@@ -333,9 +359,10 @@ export default function ChatPage() {
             <Camera className="w-5 h-5" />
           </Button>
           
-          <Input 
-            value={input} 
-            onChange={e => setInput(e.target.value)} 
+          <Input
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
             placeholder={mode === 'solver' ? "Ask a question..." : "What are you stuck on?"}
             className="h-12 rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-blue-500 focus-visible:bg-white transition-all text-base"
           />
@@ -344,8 +371,9 @@ export default function ChatPage() {
             <Send className="w-5 h-5" />
           </Button>
         </form>
+        </div>
       </div>
-      
+
       <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
     </div>
   );
