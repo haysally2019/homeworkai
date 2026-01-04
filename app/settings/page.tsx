@@ -25,22 +25,22 @@ export default function SettingsPage() {
     },
     {
       name: 'Semester Pass',
-      price: '$24.99', // Updated Price
+      price: '$25',
       period: '/one-time',
       icon: GraduationCap,
-      link: 'https://buy.stripe.com/semester_placeholder', // REPLACE WITH YOUR LINK
+      link: 'https://buy.stripe.com/semester_placeholder',
       features: ['Unlimited Deep Solves', 'Tutor Mode Access', 'Exam Prep Tools', 'Valid for 4 months'],
       current: isPro,
       popular: true,
       action: 'Upgrade'
     },
     {
-      name: 'Annual Pro',
-      price: '$39.99',
-      period: '/year',
+      name: 'Monthly Pro',
+      price: '$10',
+      period: '/month',
       icon: Crown,
-      link: 'https://buy.stripe.com/annual_placeholder', // REPLACE WITH YOUR LINK
-      features: ['Best Value', 'All Pro features', 'Priority Support', 'Beta Access'],
+      link: 'https://buy.stripe.com/monthly_placeholder',
+      features: ['Unlimited AI Solves', 'All Pro Features', 'Priority Support', 'Cancel Anytime'],
       current: false,
       action: 'Upgrade'
     }
