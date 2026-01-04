@@ -1,14 +1,8 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Crown, Check } from 'lucide-react';
+import { Check, Zap, Crown, GraduationCap } from 'lucide-react';
 
 interface PaywallModalProps {
   open: boolean;
@@ -16,66 +10,101 @@ interface PaywallModalProps {
 }
 
 export function PaywallModal({ open, onClose }: PaywallModalProps) {
-  const handleUpgrade = () => {
-    window.location.href = 'https://buy.stripe.com/placeholder';
+  
+  const handleCheckout = (link: string) => {
+    window.location.href = link;
   };
+
+  const plans = [
+    {
+      name: 'Monthly',
+      price: '$9.99',
+      period: '/mo',
+      icon: Zap,
+      link: 'https://buy.stripe.com/monthly_placeholder',
+      features: ['50 Deep Solves/mo', 'Basic Tutor Mode', 'Step-by-step logic'],
+      popular: false,
+    },
+    {
+      name: 'Semester Pass',
+      price: '$39.99',
+      period: '/one-time',
+      icon: GraduationCap,
+      link: 'https://buy.stripe.com/semester_placeholder',
+      features: ['Unlimited Deep Solves', 'Exam Prep Generator', 'Priority Support', 'Valid for 4 months'],
+      popular: true,
+      color: 'blue',
+    },
+    {
+      name: 'Annual',
+      price: '$79.99',
+      period: '/year',
+      icon: Crown,
+      link: 'https://buy.stripe.com/annual_placeholder',
+      features: ['Best Value', 'All Pro features', 'Beta access to new tools'],
+      popular: false,
+    }
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-gray-900 border-gray-800 text-white sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
-              <Crown className="h-8 w-8 text-white" />
-            </div>
-          </div>
-          <DialogTitle className="text-2xl text-center">
-            Limit Reached
+      <DialogContent className="max-w-4xl bg-slate-50 border-slate-200">
+        <DialogHeader className="text-center mb-6">
+          <DialogTitle className="text-3xl font-bold text-slate-900">
+            Unlock Your Grade Potential
           </DialogTitle>
-          <DialogDescription className="text-center text-gray-400">
-            You've used all your free credits. Upgrade to Pro for unlimited access!
+          <DialogDescription className="text-slate-500 text-lg">
+            Choose the plan that fits your study schedule.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 my-4">
-          <div className="bg-gray-800/50 rounded-lg p-4 border border-emerald-500/30">
-            <div className="flex items-baseline gap-2 mb-4">
-              <span className="text-4xl font-bold text-emerald-500">$49.99</span>
-              <span className="text-gray-400">/semester</span>
+        <div className="grid md:grid-cols-3 gap-6">
+          {plans.map((plan) => (
+            <div 
+              key={plan.name}
+              className={`relative rounded-2xl p-6 border ${
+                plan.popular 
+                  ? 'bg-white border-blue-500 shadow-xl ring-1 ring-blue-500' 
+                  : 'bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow'
+              }`}
+            >
+              {plan.popular && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full">
+                  MOST POPULAR
+                </div>
+              )}
+              
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`p-2 rounded-lg ${plan.popular ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
+                  <plan.icon className="w-5 h-5" />
+                </div>
+                <h3 className="font-semibold text-slate-900">{plan.name}</h3>
+              </div>
+
+              <div className="mb-6">
+                <span className="text-3xl font-bold text-slate-900">{plan.price}</span>
+                <span className="text-slate-500 text-sm">{plan.period}</span>
+              </div>
+
+              <ul className="space-y-3 mb-6">
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2 text-sm text-slate-600">
+                    <Check className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+
+              <Button 
+                onClick={() => handleCheckout(plan.link)}
+                variant={plan.popular ? 'default' : 'outline'}
+                className={`w-full ${plan.popular ? 'bg-blue-600 hover:bg-blue-700' : 'border-slate-200 text-slate-700'}`}
+              >
+                Choose {plan.name}
+              </Button>
             </div>
-
-            <ul className="space-y-3">
-              {[
-                'Unlimited problem solving',
-                'Access to Solver & Tutor modes',
-                'Image upload support',
-                'Step-by-step explanations',
-                'LaTeX math rendering',
-                'Priority support',
-              ].map((feature, index) => (
-                <li key={index} className="flex items-center gap-2 text-sm text-gray-300">
-                  <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-          </div>
+          ))}
         </div>
-
-        <Button
-          onClick={handleUpgrade}
-          className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-semibold py-6"
-        >
-          Get Semester Pass
-        </Button>
-
-        <Button
-          onClick={onClose}
-          variant="ghost"
-          className="w-full text-gray-400 hover:text-white"
-        >
-          Maybe later
-        </Button>
       </DialogContent>
     </Dialog>
   );
