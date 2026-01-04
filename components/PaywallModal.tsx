@@ -18,30 +18,31 @@ export function PaywallModal({ open, onClose }: PaywallModalProps) {
   const plans = [
     {
       name: 'Monthly',
-      price: '$9.99',
+      price: '$5.99', // LOWER PRICE
       period: '/mo',
       icon: Zap,
       link: 'https://buy.stripe.com/monthly_placeholder',
-      features: ['50 Deep Solves/mo', 'Basic Tutor Mode', 'Step-by-step logic'],
+      // UPGRADED FEATURES: Since Gemini is cheap, give them Unlimited immediately
+      features: ['Unlimited AI Solves', 'Tutor Mode Access', 'Detailed Step-by-Step'],
       popular: false,
     },
     {
       name: 'Semester Pass',
-      price: '$39.99',
+      price: '$19.99', // MASSIVE DISCOUNT
       period: '/one-time',
       icon: GraduationCap,
       link: 'https://buy.stripe.com/semester_placeholder',
-      features: ['Unlimited Deep Solves', 'Exam Prep Generator', 'Priority Support', 'Valid for 4 months'],
+      features: ['Valid for 4 Months', 'Exam Prep Generator', 'Priority Support', 'Save 25% vs Monthly'],
       popular: true,
       color: 'blue',
     },
     {
       name: 'Annual',
-      price: '$79.99',
+      price: '$39.99', // "NO BRAINER" PRICE
       period: '/year',
       icon: Crown,
       link: 'https://buy.stripe.com/annual_placeholder',
-      features: ['Best Value', 'All Pro features', 'Beta access to new tools'],
+      features: ['Best Value (Save 50%)', 'All Pro features', 'Beta access to new tools'],
       popular: false,
     }
   ];
@@ -51,10 +52,10 @@ export function PaywallModal({ open, onClose }: PaywallModalProps) {
       <DialogContent className="max-w-4xl bg-slate-50 border-slate-200">
         <DialogHeader className="text-center mb-6">
           <DialogTitle className="text-3xl font-bold text-slate-900">
-            Unlock Your Grade Potential
+            Unlock Unlimited Learning
           </DialogTitle>
           <DialogDescription className="text-slate-500 text-lg">
-            Choose the plan that fits your study schedule.
+            Get 100% accurate, unlimited homework help for less than a coffee.
           </DialogDescription>
         </DialogHeader>
 
@@ -70,7 +71,7 @@ export function PaywallModal({ open, onClose }: PaywallModalProps) {
             >
               {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full">
-                  MOST POPULAR
+                  BEST VALUE
                 </div>
               )}
               
