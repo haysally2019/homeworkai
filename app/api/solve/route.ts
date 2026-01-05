@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       // Initialize if missing
       const { data: newCredits } = await supabase
         .from('users_credits')
-        .insert({ id: userId, credits: 3, is_pro: false })
+        .insert({ id: userId, credits: 5, is_pro: false })
         .select()
         .single();
       userCredits = newCredits;

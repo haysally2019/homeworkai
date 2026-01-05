@@ -62,7 +62,7 @@ export default function SignupPage() {
           </div>
           <CardTitle className="text-2xl text-center text-white">Join Altus</CardTitle>
           <CardDescription className="text-center text-gray-400">
-            Create your account and get 3 free credits
+            Create your account and get 5 free credits
           </CardDescription>
         </CardHeader>
         <CardContent>

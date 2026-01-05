@@ -120,6 +120,23 @@ export function useDocuments(classId: string | undefined) {
 }
 
 export async function createClass(userId: string, classData: any) {
+  const { data: userCredits } = await supabase
+    .from('users_credits')
+    .select('is_pro')
+    .eq('id', userId)
+    .maybeSingle() as { data: { is_pro: boolean } | null };
+
+  if (!userCredits?.is_pro) {
+    const { data: existingClasses } = await supabase
+      .from('classes')
+      .select('id', { count: 'exact' })
+      .eq('user_id', userId);
+
+    if (existingClasses && existingClasses.length >= 1) {
+      throw new Error('Free users can only create 1 class. Upgrade to Pro for unlimited classes.');
+    }
+  }
+
   const { data, error } = await (supabase as any)
     .from('classes')
     .insert([{ ...classData, user_id: userId }])

@@ -19,7 +19,7 @@ export default function ClassesPage() {
   const [formData, setFormData] = useState({ name: '', code: '', color: '#3b82f6', semester: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isPro } = useAuth();
   const { classes, isLoading, mutate } = useClasses(user?.id);
 
   useEffect(() => {
@@ -41,9 +41,13 @@ export default function ClassesPage() {
       setShowDialog(false);
       setFormData({ name: '', code: '', color: '#3b82f6', semester: '' });
       toast.success('Class created successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating class:', error);
-      toast.error('Failed to create class');
+      if (error.message?.includes('Free users can only create 1 class')) {
+        toast.error('Free users can only create 1 class. Upgrade to Pro for unlimited classes.');
+      } else {
+        toast.error('Failed to create class');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -105,6 +109,9 @@ export default function ClassesPage() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Academic Dashboard</h1>
             <p className="text-slate-500 mt-1">Manage your courses and assignments</p>
+            {!isPro && classes && classes.length > 0 && (
+              <p className="text-xs text-slate-400 mt-1">Free plan: {classes.length}/1 class used</p>
+            )}
           </div>
           <Button onClick={() => setShowDialog(true)} className="bg-blue-600 hover:bg-blue-700 shadow-sm">
             <Plus className="w-4 h-4 mr-2" /> Add Class
