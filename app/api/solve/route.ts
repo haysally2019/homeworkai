@@ -134,7 +134,12 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Gemini Logic ---
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
+    if (!process.env.GOOGLE_GEMINI_API_KEY) {
+      console.error('Missing GOOGLE_GEMINI_API_KEY');
+      return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
+    }
+
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
 
     let ragContext = '';
 
@@ -147,7 +152,7 @@ export async function POST(request: NextRequest) {
         const { data: relevantChunks, error: searchError } = await supabase.rpc(
           'match_document_chunks',
           {
-            query_embedding: JSON.stringify(queryEmbedding),
+            query_embedding: `[${queryEmbedding.join(',')}]`,
             match_class_id: classId,
             match_user_id: userId,
             match_threshold: 0.3,
@@ -155,10 +160,12 @@ export async function POST(request: NextRequest) {
           }
         );
 
-        if (!searchError && relevantChunks && relevantChunks.length > 0) {
-          ragContext = '\\n\\n--- RELEVANT CLASS MATERIALS ---\\n' +
-            relevantChunks.map((chunk: any) => chunk.content).join('\\n\\n---\\n\\n') +
-            '\\n--- END CLASS MATERIALS ---\\n\\n';
+        if (searchError) {
+          console.error('RAG search error:', searchError);
+        } else if (relevantChunks && relevantChunks.length > 0) {
+          ragContext = '\n\n--- RELEVANT CLASS MATERIALS ---\n' +
+            relevantChunks.map((chunk: any) => chunk.content).join('\n\n---\n\n') +
+            '\n--- END CLASS MATERIALS ---\n\n';
         }
       } catch (ragError) {
         console.error('RAG retrieval error:', ragError);
@@ -166,20 +173,27 @@ export async function POST(request: NextRequest) {
     }
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash',
       systemInstruction: SYSTEM_PROMPT,
     });
 
     let prompt = mode === 'solver' ? `[SOLVER MODE] ${text}` : `[TUTOR MODE] ${text}`;
-    if (context) prompt += `\\nContext: ${context}`;
+    if (context) prompt += `\nContext: ${context}`;
     if (ragContext) prompt = ragContext + prompt;
 
     let result;
-    if (imageBase64) {
-      const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-      result = await model.generateContent([prompt, { inlineData: { data: cleanBase64, mimeType: 'image/jpeg' } }]);
-    } else {
-      result = await model.generateContent(prompt);
+    try {
+      if (imageBase64) {
+        const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+        result = await model.generateContent([prompt, { inlineData: { data: cleanBase64, mimeType: 'image/jpeg' } }]);
+      } else {
+        result = await model.generateContent(prompt);
+      }
+    } catch (geminiError: any) {
+      console.error('Gemini API Error:', geminiError);
+      return NextResponse.json({
+        error: `AI generation failed: ${geminiError.message || 'Unknown error'}`
+      }, { status: 500 });
     }
 
     const responseText = await result.response.text();
