@@ -58,14 +58,14 @@ export function Sidebar() {
 
   return (
     <div className={cn(
-      "h-full bg-white border-r border-slate-200 flex flex-col transition-all duration-300 shadow-sm z-50",
+      "h-full bg-gradient-to-b from-slate-50 via-blue-50/30 to-slate-50 border-r border-slate-200 flex flex-col transition-all duration-300 shadow-lg z-50",
       isCollapsed ? "w-16" : "w-64"
     )}>
       {/* Header */}
-      <div className="p-4 flex items-center justify-between border-b border-slate-100 h-16 shrink-0">
+      <div className="p-4 flex items-center justify-between border-b border-slate-200/60 h-16 shrink-0 bg-white/50 backdrop-blur-sm">
         {!isCollapsed && (
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">A</div>
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center text-white font-bold shadow-md">A</div>
             <span className="font-bold text-slate-800 text-lg">Altus</span>
           </div>
         )}
@@ -83,26 +83,26 @@ export function Sidebar() {
       <ScrollArea className="flex-1 py-4">
         <div className="px-3 space-y-6">
           
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <Button
               onClick={() => router.push('/chat')}
               variant={pathname === '/chat' ? 'secondary' : 'ghost'}
               className={cn(
                 "w-full justify-start font-medium transition-all",
-                pathname === '/chat' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                pathname === '/chat' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
                 isCollapsed && "justify-center px-2"
               )}
             >
               <MessageSquare className="h-5 w-5" />
               {!isCollapsed && <span className="ml-3">AI Chat</span>}
             </Button>
-            
+
             <Button
               onClick={() => router.push('/classes')}
               variant={pathname === '/classes' ? 'secondary' : 'ghost'}
               className={cn(
                 "w-full justify-start font-medium transition-all",
-                pathname === '/classes' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                pathname === '/classes' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
                 isCollapsed && "justify-center px-2"
               )}
             >
@@ -115,7 +115,7 @@ export function Sidebar() {
               variant={pathname === '/settings' ? 'secondary' : 'ghost'}
               className={cn(
                 "w-full justify-start font-medium transition-all",
-                pathname === '/settings' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                pathname === '/settings' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
                 isCollapsed && "justify-center px-2"
               )}
             >
@@ -129,22 +129,33 @@ export function Sidebar() {
               {/* Classes List */}
               <div className="px-2">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">My Classes</h3>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">My Classes</h3>
                   <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-blue-50 text-slate-400 hover:text-blue-600" onClick={() => router.push('/classes')}>
                     <Plus className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="space-y-1">
-                  {classes.map((cls) => (
-                    <button
-                      key={cls.id}
-                      onClick={() => router.push(`/classes/${cls.id}`)}
-                      className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-2 group"
-                    >
-                      <div className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-blue-500 transition-colors shrink-0" />
-                      <span className="truncate">{cls.name}</span>
-                    </button>
-                  ))}
+                <div className="space-y-1.5">
+                  {classes.map((cls) => {
+                    const isActive = pathname === `/classes/${cls.id}`;
+                    return (
+                      <button
+                        key={cls.id}
+                        onClick={() => router.push(`/classes/${cls.id}`)}
+                        className={cn(
+                          "w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2.5 group relative",
+                          isActive
+                            ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md shadow-blue-200 ring-2 ring-blue-300 font-medium"
+                            : "text-slate-700 hover:bg-white hover:text-blue-600 hover:shadow-sm"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-2 h-2 rounded-full transition-all shrink-0",
+                          isActive ? "bg-white shadow-sm" : "bg-slate-300 group-hover:bg-blue-500"
+                        )} />
+                        <span className="truncate">{cls.name}</span>
+                      </button>
+                    );
+                  })}
                   {classes.length === 0 && <p className="text-xs text-slate-400 px-3 italic">No classes yet</p>}
                 </div>
               </div>
@@ -154,7 +165,7 @@ export function Sidebar() {
       </ScrollArea>
 
       {/* Footer Area: Credits & Logout */}
-      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+      <div className="p-4 border-t border-slate-200/60 bg-white/40 backdrop-blur-sm">
         {!isCollapsed && (
           <>
             {/* Streak Counter - Free Users Only */}
