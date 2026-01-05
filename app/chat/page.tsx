@@ -218,15 +218,19 @@ export default function ChatPage() {
       });
 
       // --- HANDLE OUT OF CREDITS ---
-      if (res.status === 402) { 
-        setShowPaywall(true); 
-        setLoading(false); 
-        // Remove the user message we just optimistically added if it failed? 
-        // Or leave it. Usually leaving it is fine so they can retry.
-        return; 
+      if (res.status === 402) {
+        setShowPaywall(true);
+        setLoading(false);
+        return;
       }
-      
+
       const data = await res.json();
+
+      // Check for API errors
+      if (!res.ok) {
+        console.error('API Error Response:', data);
+        throw new Error(data.error || `API request failed with status ${res.status}`);
+      }
 
       // 5. Save AI Response
       if (data.response) {
@@ -248,9 +252,10 @@ export default function ChatPage() {
         throw new Error("No response from AI");
       }
 
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to process message");
+    } catch (err: any) {
+      console.error('Chat Error:', err);
+      const errorMessage = err?.message || 'Unknown error';
+      toast.error(`Failed: ${errorMessage}`);
       setMessages(prev => [...prev, { role: 'assistant', content: "I'm having trouble connecting right now. Please try again." }]);
     } finally {
       setLoading(false);
