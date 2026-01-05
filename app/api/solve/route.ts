@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     const { text, imageBase64, mode, userId, context, classId } = await request.json();
 
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!text && !imageBase64) return NextResponse.json({ error: 'No input provided' }, { status: 400 });
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
         const { data: relevantChunks, error: searchError } = await supabase.rpc(
           'match_document_chunks',
           {
-            query_embedding: `[${queryEmbedding.join(',')}]`,
+            query_embedding: Array.from(queryEmbedding),
             match_class_id: classId,
             match_user_id: userId,
             match_threshold: 0.3,

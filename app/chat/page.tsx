@@ -207,6 +207,9 @@ export default function ChatPage() {
       // 4. Call AI with classId for RAG
       const res = await fetch('/api/solve', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           text: userMsg.content,
           imageBase64: imgToSend,
@@ -280,7 +283,7 @@ export default function ChatPage() {
             )}
           </span>
           <span className="text-xs text-slate-500 flex items-center gap-1">
-            Powered by Gemini 2.0 <span className="w-1.5 h-1.5 rounded-full bg-green-500"/>
+            Powered by Gemini 1.5 Flash <span className="w-1.5 h-1.5 rounded-full bg-green-500"/>
           </span>
         </div>
         
