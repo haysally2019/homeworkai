@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // --- Credit Check Logic ---
     let { data: userCredits, error } = await supabase
       .from('users_credits')
-      .select('credits, is_pro')
+      .select('credits, is_pro, last_activity_date, current_streak, longest_streak, last_streak_reward_date')
       .eq('id', userId)
       .maybeSingle();
 
@@ -49,8 +49,63 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
 
+    // --- Streak Logic (Free Users Only) ---
+    let streakBonus = 0;
+    let newStreak = userCredits.current_streak || 0;
+    let newLongestStreak = userCredits.longest_streak || 0;
+    let streakRewardAwarded = false;
+
     if (!userCredits.is_pro) {
-      await supabase.from('users_credits').update({ credits: userCredits.credits - 1 }).eq('id', userId);
+      const today = new Date().toISOString().split('T')[0];
+      const lastActivity = userCredits.last_activity_date;
+
+      if (!lastActivity) {
+        // First activity ever
+        newStreak = 1;
+      } else {
+        const lastDate = new Date(lastActivity);
+        const todayDate = new Date(today);
+        const diffTime = todayDate.getTime() - lastDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) {
+          // Same day, no change
+          newStreak = userCredits.current_streak || 1;
+        } else if (diffDays === 1) {
+          // Consecutive day, increment streak
+          newStreak = (userCredits.current_streak || 0) + 1;
+        } else {
+          // Streak broken, reset to 1
+          newStreak = 1;
+        }
+      }
+
+      // Update longest streak
+      if (newStreak > newLongestStreak) {
+        newLongestStreak = newStreak;
+      }
+
+      // Check for 5-day streak reward
+      const lastRewardDate = userCredits.last_streak_reward_date;
+      if (newStreak >= 5 && lastRewardDate !== today) {
+        streakBonus = 10;
+        streakRewardAwarded = true;
+      }
+
+      // Update credits and streak
+      const updatedCredits = userCredits.credits - 1 + streakBonus;
+      const updateData: any = {
+        credits: updatedCredits,
+        last_activity_date: today,
+        current_streak: newStreak,
+        longest_streak: newLongestStreak,
+      };
+
+      if (streakRewardAwarded) {
+        updateData.last_streak_reward_date = today;
+      }
+
+      await supabase.from('users_credits').update(updateData).eq('id', userId);
     }
 
     // --- Gemini Logic ---
@@ -106,8 +161,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       response: responseText,
-      remainingCredits: userCredits.is_pro ? 999 : userCredits.credits - 1,
+      remainingCredits: userCredits.is_pro ? 999 : userCredits.credits - 1 + streakBonus,
       isPro: userCredits.is_pro,
+      currentStreak: newStreak,
+      streakBonus: streakBonus,
+      streakRewardAwarded: streakRewardAwarded,
     });
 
   } catch (error: any) {

@@ -12,7 +12,8 @@ import {
   LogOut,
   LayoutDashboard,
   Settings,
-  Sparkles
+  Sparkles,
+  Flame
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,7 +30,7 @@ export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
 
-  const { user, credits, isPro } = useAuth();
+  const { user, credits, isPro, currentStreak } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
@@ -155,35 +156,71 @@ export function Sidebar() {
       {/* Footer Area: Credits & Logout */}
       <div className="p-4 border-t border-slate-100 bg-slate-50/50">
         {!isCollapsed && (
-          <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 shadow-sm">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Daily Limit</span>
-              <span className="text-xs font-bold text-blue-600">{isPro ? '∞' : `${credits}/3`}</span>
-            </div>
-            
-            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-3">
-              <div 
-                className={cn("h-full rounded-full transition-all duration-500", isPro ? "bg-gradient-to-r from-blue-500 to-indigo-500 w-full" : "bg-blue-500")}
-                style={{ width: isPro ? '100%' : `${(credits / 3) * 100}%` }} 
-              />
-            </div>
+          <>
+            {/* Streak Counter - Free Users Only */}
+            {!isPro && (
+              <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200 rounded-xl p-4 mb-3 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Flame className={cn("w-4 h-4", currentStreak >= 5 ? "text-orange-500" : "text-orange-400")} />
+                    <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Study Streak</span>
+                  </div>
+                  <span className="text-lg font-bold text-orange-600">{currentStreak}</span>
+                </div>
 
-            {!isPro ? (
-              <Button 
-                onClick={() => setShowPaywall(true)} 
-                size="sm" 
-                className="w-full bg-slate-900 text-white hover:bg-slate-800 text-xs h-8 shadow-sm"
-              >
-                <Sparkles className="w-3 h-3 mr-2 text-yellow-400" />
-                Upgrade to Pro
-              </Button>
-            ) : (
-              <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 bg-slate-50 py-1.5 rounded-lg border border-slate-100">
-                <Sparkles className="w-3 h-3 text-blue-500" />
-                <span>Pro Active</span>
+                <div className="flex gap-1 mb-2">
+                  {[1, 2, 3, 4, 5].map((day) => (
+                    <div
+                      key={day}
+                      className={cn(
+                        "flex-1 h-1.5 rounded-full transition-all duration-300",
+                        currentStreak >= day ? "bg-orange-500" : "bg-orange-200"
+                      )}
+                    />
+                  ))}
+                </div>
+
+                <p className="text-xs text-slate-600">
+                  {currentStreak >= 5 ? (
+                    <span className="font-semibold text-orange-600">Amazing! Keep it up! 🎉</span>
+                  ) : (
+                    <>Study <span className="font-semibold">{5 - currentStreak} more day{5 - currentStreak !== 1 ? 's' : ''}</span> for <span className="font-semibold">+10 credits</span></>
+                  )}
+                </p>
               </div>
             )}
-          </div>
+
+            {/* Credits Display */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 shadow-sm">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Daily Limit</span>
+                <span className="text-xs font-bold text-blue-600">{isPro ? '∞' : `${credits}/5`}</span>
+              </div>
+
+              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-3">
+                <div
+                  className={cn("h-full rounded-full transition-all duration-500", isPro ? "bg-gradient-to-r from-blue-500 to-indigo-500 w-full" : "bg-blue-500")}
+                  style={{ width: isPro ? '100%' : `${(credits / 5) * 100}%` }}
+                />
+              </div>
+
+              {!isPro ? (
+                <Button
+                  onClick={() => setShowPaywall(true)}
+                  size="sm"
+                  className="w-full bg-slate-900 text-white hover:bg-slate-800 text-xs h-8 shadow-sm"
+                >
+                  <Sparkles className="w-3 h-3 mr-2 text-yellow-400" />
+                  Upgrade to Pro
+                </Button>
+              ) : (
+                <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 bg-slate-50 py-1.5 rounded-lg border border-slate-100">
+                  <Sparkles className="w-3 h-3 text-blue-500" />
+                  <span>Pro Active</span>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         <Button

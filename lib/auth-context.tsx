@@ -9,6 +9,8 @@ interface AuthContextType {
   credits: number;
   isPro: boolean;
   loading: boolean;
+  currentStreak: number;
+  longestStreak: number;
   refreshCredits: () => Promise<void>;
 }
 
@@ -17,6 +19,8 @@ const AuthContext = createContext<AuthContextType>({
   credits: 0,
   isPro: false,
   loading: true,
+  currentStreak: 0,
+  longestStreak: 0,
   refreshCredits: async () => {},
 });
 
@@ -24,6 +28,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [credits, setCredits] = useState(0);
   const [isPro, setIsPro] = useState(false);
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [longestStreak, setLongestStreak] = useState(0);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
@@ -31,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await (supabase as any)
         .from('users_credits')
-        .select('credits, is_pro')
+        .select('credits, is_pro, current_streak, longest_streak')
         .eq('id', userId)
         .maybeSingle();
 
@@ -43,6 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data) {
         setCredits(data.credits);
         setIsPro(data.is_pro);
+        setCurrentStreak(data.current_streak || 0);
+        setLongestStreak(data.longest_streak || 0);
       }
     } catch (error) {
       console.error('Exception fetching credits:', error);
@@ -92,6 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
           setCredits(0);
           setIsPro(false);
+          setCurrentStreak(0);
+          setLongestStreak(0);
         }
         setLoading(false);
       }
@@ -103,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, credits, isPro, loading, refreshCredits }}>
+    <AuthContext.Provider value={{ user, credits, isPro, loading, currentStreak, longestStreak, refreshCredits }}>
       {children}
     </AuthContext.Provider>
   );

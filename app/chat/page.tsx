@@ -237,6 +237,13 @@ export default function ChatPage() {
             content: data.response
         });
         await refreshCredits();
+
+        // Show streak reward notification
+        if (data.streakRewardAwarded && data.streakBonus > 0) {
+          toast.success(`🔥 ${data.currentStreak}-Day Streak! You earned ${data.streakBonus} bonus credits!`, {
+            duration: 5000,
+          });
+        }
       } else {
         throw new Error("No response from AI");
       }
