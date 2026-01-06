@@ -6,7 +6,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import {
   MessageSquare,
-  Plus,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -18,16 +17,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { ClassesList } from '@/components/ClassesList';
 
 const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 
-interface Class {
-  id: string;
-  name: string;
-}
-
 export function Sidebar() {
-  const [classes, setClasses] = useState<Class[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
 
@@ -35,22 +29,6 @@ export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
-
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchClasses = async () => {
-      const { data: classData } = await supabase
-        .from('classes')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .limit(10);
-
-      if (classData) setClasses(classData);
-    };
-
-    fetchClasses();
-  }, [user]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -125,43 +103,7 @@ export function Sidebar() {
             </Button>
           </div>
 
-          {!isCollapsed && (
-            <>
-              {/* Classes List */}
-              <div className="px-2">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">My Classes</h3>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-blue-50 text-slate-400 hover:text-blue-600" onClick={() => router.push('/classes')}>
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="space-y-1.5">
-                  {classes.map((cls) => {
-                    const isActive = pathname === `/classes/${cls.id}`;
-                    return (
-                      <button
-                        key={cls.id}
-                        onClick={() => router.push(`/classes/${cls.id}`)}
-                        className={cn(
-                          "w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2.5 group relative",
-                          isActive
-                            ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md shadow-blue-200 ring-2 ring-blue-300 font-medium"
-                            : "text-slate-700 hover:bg-white hover:text-blue-600 hover:shadow-sm"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-2 h-2 rounded-full transition-all shrink-0",
-                          isActive ? "bg-white shadow-sm" : "bg-slate-300 group-hover:bg-blue-500"
-                        )} />
-                        <span className="truncate">{cls.name}</span>
-                      </button>
-                    );
-                  })}
-                  {classes.length === 0 && <p className="text-xs text-slate-400 px-3 italic">No classes yet</p>}
-                </div>
-              </div>
-            </>
-          )}
+          {!isCollapsed && <ClassesList isCollapsed={isCollapsed} />}
         </div>
       </ScrollArea>
 
