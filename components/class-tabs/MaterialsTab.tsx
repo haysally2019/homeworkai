@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, File, Trash2, PenTool, Sparkles } from 'lucide-react';
+import { Loader2, Upload, File, Trash2, PenTool } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDocuments, deleteDocument as deleteDocumentAction } from '@/hooks/use-classes';
 import { NoteTaker } from '@/components/NoteTaker';
@@ -16,27 +16,45 @@ export function MaterialsTab({ classId, userId }: { classId: string, userId: str
   const [showNoteTaker, setShowNoteTaker] = useState(false);
   const supabase = createClient();
 
+  // 1. HANDLER FOR MANUAL UPLOADS (STRICT VALIDATION)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.type !== 'application/pdf') return toast.error('Only PDF files are supported for manual upload');
-    if (file.size > 10 * 1024 * 1024) return toast.error('File size must be less than 10MB');
+    
+    if (file.type !== 'application/pdf') {
+      return toast.error('Only PDF files are supported for manual upload');
+    }
+    
+    if (file.size > 10 * 1024 * 1024) {
+      return toast.error('File size must be less than 10MB');
+    }
+
     await processAndUploadFile(file);
     e.target.value = '';
   };
 
+  // 2. CORE UPLOAD LOGIC (ACCEPTS MD OR PDF)
   const processAndUploadFile = async (file: File) => {
     setUploadingFile(true);
     try {
+      // Sanitize filename to be storage-safe
       const sanitizedName = file.name.replace(/[:\/]/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${userId}/${classId}/${Date.now()}_${sanitizedName}`;
 
+      // Upload to Storage
       const { error: uploadError } = await supabase.storage
         .from('class-documents')
-        .upload(filePath, file, { contentType: file.type });
+        .upload(filePath, file, { 
+          contentType: file.type || 'text/markdown', // Fallback for MD
+          upsert: false 
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Storage Error:", uploadError);
+        throw new Error("Failed to upload file to storage. Check bucket permissions.");
+      }
 
+      // Insert to DB
       const { data: insertedDoc, error: dbError } = await (supabase as any)
         .from('class_documents')
         .insert([{
@@ -52,9 +70,9 @@ export function MaterialsTab({ classId, userId }: { classId: string, userId: str
 
       if (dbError) throw dbError;
 
-      mutateDocuments(); // Optimistic update
+      mutateDocuments(); 
       
-      // Trigger AI processing
+      // Trigger AI
       fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-document`, {
         method: 'POST',
         headers: {
@@ -65,8 +83,7 @@ export function MaterialsTab({ classId, userId }: { classId: string, userId: str
       });
 
     } catch (error: any) {
-      console.error(error);
-      toast.error('Failed to save document');
+      toast.error(error.message || 'Failed to save document');
     } finally {
       setUploadingFile(false);
     }
