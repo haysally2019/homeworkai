@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Layers, HelpCircle } from 'lucide-react';
+import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, Layers, HelpCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -77,7 +76,6 @@ export default function ClassDetail() {
     }
   };
 
-  // Exam Prep Logic
   const toggleStudySelection = (aid: string) => {
     setSelectedForStudy(prev => prev.includes(aid) ? prev.filter(id => id !== aid) : [...prev, aid]);
   };
@@ -108,7 +106,6 @@ export default function ClassDetail() {
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      {/* Header */}
       <div className="bg-white border-b border-slate-200 p-6 md:p-8 pt-10 md:pt-12 relative overflow-hidden shrink-0">
         <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: (classData as any)?.color }} />
         <Button variant="ghost" onClick={() => router.push('/classes')} className="absolute top-4 left-4 text-slate-500 hover:text-slate-800"><ArrowLeft className="w-4 h-4 mr-2"/> Back</Button>
