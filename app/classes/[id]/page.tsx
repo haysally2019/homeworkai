@@ -200,7 +200,7 @@ ${rawNotes}`,
       const filename = `Notes_${dateStr}_${timeStr}.md`;
       
       const blob = new Blob([data.response], { type: 'text/markdown' });
-      const file = new File([blob], filename, { type: 'text/markdown' });
+      const file = new (File as any)([blob], filename, { type: 'text/markdown' }) as File;
 
       // 3. Upload (Bypasses manual validation)
       await processAndUploadFile(file);
