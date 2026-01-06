@@ -86,6 +86,19 @@ export function Sidebar() {
           
           <div className="space-y-1.5">
             <Button
+              onClick={() => router.push('/dashboard')}
+              variant={pathname === '/dashboard' ? 'secondary' : 'ghost'}
+              className={cn(
+                "w-full justify-start font-medium transition-all",
+                pathname === '/dashboard' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
+                isCollapsed && "justify-center px-2"
+              )}
+            >
+              <LayoutDashboard className="h-5 w-5" />
+              {!isCollapsed && <span className="ml-3">Dashboard</span>}
+            </Button>
+
+            <Button
               onClick={() => router.push('/chat')}
               variant={pathname === '/chat' ? 'secondary' : 'ghost'}
               className={cn(
@@ -96,19 +109,6 @@ export function Sidebar() {
             >
               <MessageSquare className="h-5 w-5" />
               {!isCollapsed && <span className="ml-3">AI Chat</span>}
-            </Button>
-
-            <Button
-              onClick={() => router.push('/classes')}
-              variant={pathname === '/classes' ? 'secondary' : 'ghost'}
-              className={cn(
-                "w-full justify-start font-medium transition-all",
-                pathname === '/classes' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
-                isCollapsed && "justify-center px-2"
-              )}
-            >
-              <LayoutDashboard className="h-5 w-5" />
-              {!isCollapsed && <span className="ml-3">Dashboard</span>}
             </Button>
 
             <Button
