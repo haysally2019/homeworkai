@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
         if (searchError) {
           console.error('RAG search error:', searchError);
         } else if (relevantChunks && relevantChunks.length > 0) {
-          ragContext = '\n\n--- RELEVANT CLASS MATERIALS ---\n' +
+          ragContext += `\n[Source: ${chunk.filename}]\n${chunk.content}`;
             relevantChunks.map((chunk: any) => chunk.content).join('\n\n---\n\n') +
             '\n--- END CLASS MATERIALS ---\n\n';
         }
