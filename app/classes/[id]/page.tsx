@@ -7,73 +7,44 @@ import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Upload, File, Trash2, Layers, HelpCircle, PenTool, FileEdit, X } from 'lucide-react';
+import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Layers, HelpCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { FlashcardViewer } from '@/components/FlashcardViewer';
 import { QuizViewer } from '@/components/QuizViewer';
-import { NoteTaker } from '@/components/NoteTaker';
-import { MessageRenderer } from '@/components/MessageRenderer';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { useClass, useAssignments, useDocuments, createAssignment, updateAssignment, deleteDocument as deleteDocumentAction } from '@/hooks/use-classes';
+import { useClass, useAssignments, createAssignment, updateAssignment } from '@/hooks/use-classes';
+import { MaterialsTab } from '@/components/class-tabs/MaterialsTab';
 
 export default function ClassDetail() {
   const { id } = useParams();
   const router = useRouter();
-  const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
-
   const classId = Array.isArray(id) ? id[0] : id;
 
   const { classData, isLoading: classLoading } = useClass(classId);
   const { assignments, mutate: mutateAssignments } = useAssignments(classId);
-  const { documents, mutate: mutateDocuments } = useDocuments(classId);
-  const [savedNotes, setSavedNotes] = useState<any[]>([]);
-  const [selectedNote, setSelectedNote] = useState<any>(null);
 
-  const [uploadingFile, setUploadingFile] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
   const [newAssign, setNewAssign] = useState({ title: '', due_date: '', type: 'Homework' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Exam Prep
+  // Exam Prep State
   const [selectedForStudy, setSelectedForStudy] = useState<string[]>([]);
   const [generatingGuide, setGeneratingGuide] = useState(false);
   const [studyMode, setStudyMode] = useState<'flashcards' | 'quiz'>('flashcards');
   const [flashcards, setFlashcards] = useState<any[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
 
-  // Note Taker
-  const [showNoteTaker, setShowNoteTaker] = useState(false);
-
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
   }, [authLoading, user]);
 
-  const fetchNotes = async () => {
-    if (!classId || !user) return;
-    const { data, error } = await supabase
-      .from('class_notes')
-      .select('*')
-      .eq('class_id', classId)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (!error && data) setSavedNotes(data);
-  };
-
-  useEffect(() => {
-    fetchNotes();
-  }, [classId, user]);
-
-  // --- Assignments ---
   const addAssignment = async () => {
     if (!newAssign.title) return toast.error("Please enter a title");
     setIsSubmitting(true);
@@ -106,89 +77,7 @@ export default function ClassDetail() {
     }
   };
 
-  // --- File Upload & Notes ---
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Manual upload validation
-    if (file.type !== 'application/pdf') {
-      return toast.error('Only PDF files are supported for manual upload');
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      return toast.error('File size must be less than 10MB');
-    }
-
-    await processAndUploadFile(file);
-    e.target.value = ''; 
-  };
-
-  const processAndUploadFile = async (file: File) => {
-    setUploadingFile(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
-      // Sanitize filename
-      const sanitizedName = file.name.replace(/[:\/]/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_');
-      const filePath = `${session.user.id}/${classId}/${Date.now()}_${sanitizedName}`;
-
-      // 1. Upload
-      const { error: uploadError } = await supabase.storage
-        .from('class-documents')
-        .upload(filePath, file, { contentType: file.type });
-
-      if (uploadError) throw uploadError;
-
-      // 2. DB Insert
-      const { data: insertedDoc, error: dbError } = await (supabase as any)
-        .from('class_documents')
-        .insert([{
-          class_id: classId,
-          user_id: session.user.id,
-          filename: file.name,
-          file_path: filePath,
-          file_type: file.type,
-          file_size: file.size,
-          processing_status: 'pending'
-        }])
-        .select()
-        .single();
-
-      if (dbError) throw dbError;
-
-      toast.success('Saved! Processing...');
-      mutateDocuments();
-
-      // 3. Trigger Processing
-      fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-document`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ documentId: insertedDoc.id }),
-      });
-
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.message || 'Upload failed');
-    } finally {
-      setUploadingFile(false);
-    }
-  };
-
-
-  const handleDeleteDocument = async (docId: string, filePath: string) => {
-    if (!confirm('Delete this?')) return;
-    try {
-      await deleteDocumentAction(classId, docId, filePath);
-      mutateDocuments();
-      toast.success('Deleted');
-    } catch (e) { toast.error('Delete failed'); }
-  };
-
+  // Exam Prep Logic
   const toggleStudySelection = (aid: string) => {
     setSelectedForStudy(prev => prev.includes(aid) ? prev.filter(id => id !== aid) : [...prev, aid]);
   };
@@ -219,187 +108,130 @@ export default function ClassDetail() {
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      <div className="bg-white border-b border-slate-200 p-8 pt-12 relative overflow-hidden">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 p-6 md:p-8 pt-10 md:pt-12 relative overflow-hidden shrink-0">
         <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: (classData as any)?.color }} />
-        <Button variant="ghost" onClick={() => router.push('/classes')} className="absolute top-4 left-4 text-slate-500"><ArrowLeft className="w-4 h-4 mr-2"/> Back</Button>
-        <h1 className="text-3xl font-bold text-slate-900">{(classData as any)?.name}</h1>
-        <p className="text-slate-500 font-medium">{(classData as any)?.code}</p>
+        <Button variant="ghost" onClick={() => router.push('/classes')} className="absolute top-4 left-4 text-slate-500 hover:text-slate-800"><ArrowLeft className="w-4 h-4 mr-2"/> Back</Button>
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-3xl font-bold text-slate-900 mt-2">{(classData as any)?.name}</h1>
+          <p className="text-slate-500 font-medium">{(classData as any)?.code}</p>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-hidden p-6 max-w-5xl mx-auto w-full">
+      <div className="flex-1 overflow-hidden p-4 md:p-6 max-w-5xl mx-auto w-full">
         <Tabs defaultValue="materials" className="h-full flex flex-col">
-          <TabsList className="bg-white border p-1 mb-4 w-fit">
+          <TabsList className="bg-white border p-1 mb-4 w-full md:w-fit grid grid-cols-3 md:flex">
             <TabsTrigger value="materials">Materials</TabsTrigger>
-            <TabsTrigger value="assignments">Assignments</TabsTrigger>
-            <TabsTrigger value="examprep">Exam Prep</TabsTrigger>
+            <TabsTrigger value="assignments">Tasks</TabsTrigger>
+            <TabsTrigger value="examprep">Study</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="materials" className="flex-1 overflow-y-auto space-y-4">
-            <div className="grid gap-4">
-              <Card onClick={() => setShowNoteTaker(true)} className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100 cursor-pointer hover:shadow-md transition-all flex items-center justify-between group">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-blue-600 shadow-sm">
-                    <FileEdit className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-blue-900 text-lg">Start Class Notes</h3>
-                    <p className="text-blue-700 text-sm">AI will summarize and format them instantly.</p>
-                  </div>
-                </div>
-                <Button className="bg-blue-600 group-hover:bg-blue-700">Open Note Taker</Button>
-              </Card>
+          <TabsContent value="materials" className="flex-1 overflow-y-auto min-h-0">
+            <MaterialsTab classId={classId} userId={user.id} />
+          </TabsContent>
 
-              <div className="flex justify-end">
-                <label>
-                  <input type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" />
-                  <Button variant="outline" disabled={uploadingFile}>
-                    {uploadingFile ? <Loader2 className="animate-spin mr-2"/> : <Upload className="mr-2 h-4 w-4"/>} Upload PDF
-                  </Button>
-                </label>
-              </div>
-
-              {savedNotes.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-slate-700 text-sm">Saved Notes</h3>
-                  {savedNotes.map((note: any) => (
-                    <Card key={note.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setSelectedNote(note)}>
-                      <div className="w-10 h-10 rounded flex items-center justify-center bg-blue-100 text-blue-600">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium text-slate-900">{note.title}</h4>
-                        <p className="text-xs text-slate-500 line-clamp-1">{note.summary}</p>
-                        <span className="text-xs text-slate-400">{new Date(note.created_at).toLocaleDateString()}</span>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-
-              {documents?.map((doc: any) => (
-                <Card key={doc.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
-                  <div className={`w-10 h-10 rounded flex items-center justify-center ${doc.file_type === 'text/markdown' ? 'bg-purple-100 text-purple-600' : 'bg-red-100 text-red-600'}`}>
-                    <File className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-slate-900">{doc.filename}</h4>
-                    <div className="flex gap-2 mt-1">
-                      <Badge variant={doc.processing_status === 'completed' ? 'default' : 'outline'} className={doc.processing_status === 'completed' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'text-slate-500'}>
-                        {doc.processing_status === 'completed' ? 'Ready' : 'Processing...'}
-                      </Badge>
-                      <span className="text-xs text-slate-400 self-center">{new Date(doc.upload_date).toLocaleDateString()}</span>
+          <TabsContent value="assignments" className="flex-1 overflow-y-auto space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="font-bold text-lg text-slate-800">Assignments</h2>
+              <Button onClick={() => setShowAssignModal(true)} size="sm"><Plus className="mr-2 h-4 w-4"/> Add Task</Button>
+            </div>
+            <div className="grid gap-3 pb-8">
+              {assignments?.length === 0 && <div className="text-center py-8 text-slate-400">No tasks yet.</div>}
+              {assignments?.map((a: any) => (
+                <Card key={a.id} className="p-4 flex gap-3 items-center hover:border-slate-300 transition-colors" onClick={() => setSelectedAssignment(a)}>
+                  <button onClick={(e) => toggleComplete(e, a.id, a.completed)}>
+                    {a.completed ? <CheckCircle className="text-emerald-500 w-6 h-6"/> : <Circle className="text-slate-300 w-6 h-6 hover:text-blue-500"/>}
+                  </button>
+                  <div className="flex-1 cursor-pointer">
+                    <p className={`font-medium ${a.completed && 'line-through text-slate-400'}`}>{a.title}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="secondary" className="text-[10px] h-5">{a.type}</Badge>
+                      {a.due_date && <span className="text-xs text-slate-500 flex items-center"><Calendar className="w-3 h-3 mr-1"/>{new Date(a.due_date).toLocaleDateString()}</span>}
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => handleDeleteDocument(doc.id, doc.file_path)} className="text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></Button>
                 </Card>
               ))}
             </div>
           </TabsContent>
 
-          <TabsContent value="assignments" className="space-y-4">
-            <div className="flex justify-between">
-              <h2 className="font-bold text-lg">Tasks</h2>
-              <Button onClick={() => setShowAssignModal(true)} size="sm"><Plus className="mr-2 h-4 w-4"/> Add</Button>
-            </div>
-            {assignments?.map((a: any) => (
-              <Card key={a.id} className="p-4 flex gap-3 items-center">
-                <button onClick={(e) => toggleComplete(e, a.id, a.completed)}>
-                  {a.completed ? <CheckCircle className="text-emerald-500"/> : <Circle className="text-slate-300"/>}
-                </button>
-                <div className="flex-1">
-                  <p className={`font-medium ${a.completed && 'line-through text-slate-400'}`}>{a.title}</p>
-                  <p className="text-xs text-slate-500">{a.type} • Due {new Date(a.due_date).toLocaleDateString()}</p>
-                </div>
-              </Card>
-            ))}
-          </TabsContent>
-
-          <TabsContent value="examprep" className="flex-1 flex gap-6 h-full">
-            <Card className="w-80 p-4 h-full flex flex-col bg-slate-50">
-              <h3 className="font-bold mb-4 flex items-center gap-2"><BookOpen className="w-4 h-4"/> Select Content</h3>
-              <div className="flex-1 overflow-y-auto space-y-2">
+          <TabsContent value="examprep" className="flex-1 flex flex-col md:flex-row gap-6 h-full min-h-0">
+            <Card className="w-full md:w-72 p-4 h-fit md:h-full flex flex-col bg-slate-50 border-slate-200">
+              <h3 className="font-bold mb-4 flex items-center gap-2 text-slate-800"><BookOpen className="w-4 h-4 text-purple-600"/> Select Content</h3>
+              <div className="flex-1 overflow-y-auto space-y-2 max-h-[30vh] md:max-h-none mb-4 md:mb-0">
                 {assignments?.map((a: any) => (
-                  <div key={a.id} className="flex gap-2 items-center">
-                    <Checkbox checked={selectedForStudy.includes(a.id)} onCheckedChange={() => toggleStudySelection(a.id)}/>
-                    <span className="text-sm truncate">{a.title}</span>
+                  <div key={a.id} className="flex gap-2 items-center p-2 rounded hover:bg-slate-100">
+                    <Checkbox id={`s-${a.id}`} checked={selectedForStudy.includes(a.id)} onCheckedChange={() => toggleStudySelection(a.id)}/>
+                    <label htmlFor={`s-${a.id}`} className="text-sm truncate cursor-pointer flex-1">{a.title}</label>
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                <Button variant={studyMode === 'flashcards' ? 'default' : 'outline'} onClick={() => setStudyMode('flashcards')}>Cards</Button>
-                <Button variant={studyMode === 'quiz' ? 'default' : 'outline'} onClick={() => setStudyMode('quiz')}>Quiz</Button>
+              <div className="mt-auto pt-4 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" variant={studyMode === 'flashcards' ? 'default' : 'outline'} onClick={() => setStudyMode('flashcards')} className={studyMode === 'flashcards' ? 'bg-purple-600' : ''}><Layers className="w-4 h-4 mr-2"/>Cards</Button>
+                  <Button size="sm" variant={studyMode === 'quiz' ? 'default' : 'outline'} onClick={() => setStudyMode('quiz')} className={studyMode === 'quiz' ? 'bg-blue-600' : ''}><HelpCircle className="w-4 h-4 mr-2"/>Quiz</Button>
+                </div>
+                <Button className="w-full bg-slate-900" onClick={generateStudyGuide} disabled={generatingGuide || !selectedForStudy.length}>
+                  {generatingGuide ? <Loader2 className="animate-spin mr-2 w-4 h-4"/> : <><Sparkles className="w-4 h-4 mr-2"/> Generate Guide</>}
+                </Button>
               </div>
-              <Button className="w-full mt-2" onClick={generateStudyGuide} disabled={generatingGuide || !selectedForStudy.length}>
-                {generatingGuide ? <Loader2 className="animate-spin"/> : "Generate"}
-              </Button>
             </Card>
-            <div className="flex-1 bg-white rounded-xl border p-6 overflow-y-auto">
+            
+            <div className="flex-1 bg-white rounded-xl border border-slate-200 p-4 md:p-6 overflow-y-auto shadow-sm">
               {flashcards.length > 0 && studyMode === 'flashcards' && <FlashcardViewer flashcards={flashcards} onRegenerate={generateStudyGuide} isGenerating={generatingGuide} />}
               {quizQuestions.length > 0 && studyMode === 'quiz' && <QuizViewer questions={quizQuestions} onRegenerate={generateStudyGuide} isGenerating={generatingGuide} />}
-              {!flashcards.length && !quizQuestions.length && <div className="h-full flex items-center justify-center text-slate-400">Select assignments to start studying</div>}
+              {!flashcards.length && !quizQuestions.length && (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                  <Sparkles className="w-12 h-12 mb-4 text-slate-200" />
+                  <p>Select assignments to generate study materials</p>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
       </div>
 
-      <NoteTaker
-        open={showNoteTaker}
-        onOpenChange={(open) => {
-          setShowNoteTaker(open);
-          if (!open) fetchNotes();
-        }}
-        classId={classId}
-        userId={user?.id || ''}
-      />
-
-      <Dialog open={!!selectedNote} onOpenChange={(open) => !open && setSelectedNote(null)}>
-        <DialogContent className="max-w-4xl h-[80vh]">
-          <DialogHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <DialogTitle className="text-2xl">{selectedNote?.title}</DialogTitle>
-                <p className="text-sm text-slate-500 mt-2">{selectedNote?.summary}</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {selectedNote?.created_at && new Date(selectedNote.created_at).toLocaleString()}
-                </p>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setSelectedNote(null)}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </DialogHeader>
-          <ScrollArea className="flex-1 -mx-6 px-6">
-            <div className="prose prose-slate max-w-none">
-              {selectedNote?.formatted_notes && <MessageRenderer content={selectedNote.formatted_notes} />}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Assignment</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <Input placeholder="Title" value={newAssign.title} onChange={e => setNewAssign({...newAssign, title: e.target.value})} />
-            <Select value={newAssign.type} onValueChange={v => setNewAssign({...newAssign, type: v})}>
-              <SelectTrigger><SelectValue/></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Homework">Homework</SelectItem>
-                <SelectItem value="Exam">Exam</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input type="date" value={newAssign.due_date} onChange={e => setNewAssign({...newAssign, due_date: e.target.value})} />
-            <Button onClick={addAssignment} disabled={isSubmitting} className="w-full">Save</Button>
+          <div className="space-y-4 pt-4">
+            <Input placeholder="Assignment Title" value={newAssign.title} onChange={e => setNewAssign({...newAssign, title: e.target.value})} />
+            <div className="grid grid-cols-2 gap-4">
+              <Select value={newAssign.type} onValueChange={v => setNewAssign({...newAssign, type: v})}>
+                <SelectTrigger><SelectValue placeholder="Type"/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Homework">Homework</SelectItem>
+                  <SelectItem value="Quiz">Quiz</SelectItem>
+                  <SelectItem value="Exam">Exam</SelectItem>
+                  <SelectItem value="Project">Project</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input type="date" value={newAssign.due_date} onChange={e => setNewAssign({...newAssign, due_date: e.target.value})} />
+            </div>
+            <Button onClick={addAssignment} disabled={isSubmitting} className="w-full">Save Task</Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <Sheet open={!!selectedAssignment} onOpenChange={(open) => !open && setSelectedAssignment(null)}>
+        <SheetContent>
+          <SheetHeader className="mb-4">
+            <SheetTitle>{selectedAssignment?.title}</SheetTitle>
+            <Badge variant="outline" className="w-fit">{selectedAssignment?.type}</Badge>
+          </SheetHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="p-4 cursor-pointer hover:bg-blue-50 border-blue-100 group" onClick={() => router.push(`/chat?mode=solver&assignmentId=${selectedAssignment.id}`)}>
+              <Sparkles className="w-5 h-5 text-blue-600 mb-2 group-hover:scale-110 transition-transform"/>
+              <div className="font-bold text-sm text-blue-900">Solver</div>
+              <div className="text-xs text-blue-700">Get answers</div>
+            </Card>
+            <Card className="p-4 cursor-pointer hover:bg-purple-50 border-purple-100 group" onClick={() => router.push(`/chat?mode=tutor&assignmentId=${selectedAssignment.id}`)}>
+              <BookOpen className="w-5 h-5 text-purple-600 mb-2 group-hover:scale-110 transition-transform"/>
+              <div className="font-bold text-sm text-purple-900">Tutor</div>
+              <div className="text-xs text-purple-700">Learn concepts</div>
+            </Card>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
-}
-
-function getDueDateColor(dateStr: string, completed: boolean) {
-  if (completed) return 'text-slate-400';
-  const diff = new Date(dateStr).getTime() - new Date().getTime();
-  const days = Math.ceil(diff / (1000 * 3600 * 24));
-  return days < 0 ? 'text-red-500' : days <= 2 ? 'text-orange-500' : 'text-slate-500';
 }
