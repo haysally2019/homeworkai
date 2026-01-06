@@ -20,7 +20,6 @@ export function MaterialsTab({ classId, userId }: { classId: string, userId: str
   const [savedNotes, setSavedNotes] = useState<any[]>([]);
   const [selectedNote, setSelectedNote] = useState<any>(null);
   const [loadingNotes, setLoadingNotes] = useState(true);
-  const [isPro, setIsPro] = useState(false);
   const supabase = createClient();
 
   const fetchNotes = async () => {
@@ -56,25 +55,7 @@ export function MaterialsTab({ classId, userId }: { classId: string, userId: str
 
   useEffect(() => {
     fetchNotes();
-    checkProStatus();
   }, [classId, userId]);
-
-  const checkProStatus = async () => {
-    const { data } = await supabase
-      .from('users_credits')
-      .select('is_pro')
-      .eq('id', userId)
-      .maybeSingle();
-    setIsPro((data as any)?.is_pro || false);
-  };
-
-  const handleOpenNoteTaker = () => {
-    if (!isPro && savedNotes.length >= 2) {
-      toast.error('Free users can save up to 2 notes per class. Upgrade to Pro for unlimited notes.');
-      return;
-    }
-    setShowNoteTaker(true);
-  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -161,10 +142,10 @@ export function MaterialsTab({ classId, userId }: { classId: string, userId: str
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <Button
-            onClick={handleOpenNoteTaker}
+            onClick={() => setShowNoteTaker(true)}
             className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
           >
-            <PenTool className="w-4 h-4 mr-2" /> Live Notes {!isPro && `(${Math.max(0, 2 - savedNotes.length)} left)`}
+            <PenTool className="w-4 h-4 mr-2" /> Live Notes
           </Button>
           <label className="flex-1 sm:flex-none">
             <input type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" />

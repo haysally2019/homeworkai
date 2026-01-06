@@ -19,29 +19,6 @@ export async function POST(request: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { data: userCredits } = await supabase
-      .from('users_credits')
-      .select('is_pro')
-      .eq('id', userId)
-      .maybeSingle();
-
-    const isPro = userCredits?.is_pro || false;
-
-    if (!isPro) {
-      const { count } = await supabase
-        .from('class_notes')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('class_id', classId);
-
-      if (count !== null && count >= 2) {
-        return NextResponse.json(
-          { error: 'Free users can only save up to 2 notes per class. Upgrade to Pro for unlimited notes.' },
-          { status: 402 }
-        );
-      }
-    }
-
     if (!process.env.GOOGLE_GEMINI_API_KEY) {
       return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
     }
