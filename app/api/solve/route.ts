@@ -43,6 +43,10 @@ export async function POST(request: NextRequest) {
       userCredits = newCredits;
     }
 
+    if (!userCredits) {
+      return NextResponse.json({ error: 'Failed to load user credits' }, { status: 500 });
+    }
+
     if (!userCredits.is_pro && userCredits.credits < 1) {
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
