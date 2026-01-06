@@ -1,258 +1,169 @@
 'use client';
 
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import {
-  MessageSquare,
-  Plus,
-  ChevronLeft,
-  ChevronRight,
-  LogOut,
-  LayoutDashboard,
-  Settings,
-  Sparkles,
-  Flame
+import { 
+  LayoutDashboard, BookOpen, Settings, 
+  LogOut, Flame, CheckCircle2, 
+  GraduationCap, ChevronRight, Clock 
 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
-const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
-
-interface Class {
-  id: string;
-  name: string;
-}
+const menuItems = [
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
+  { icon: BookOpen, label: 'Classes', href: '/classes' },
+  { icon: Settings, label: 'Settings', href: '/settings' },
+];
 
 export function Sidebar() {
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
-
-  const { user, credits, isPro, currentStreak } = useAuth();
-  const router = useRouter();
   const pathname = usePathname();
+  const { user, signOut } = useAuth();
   const supabase = createClient();
+  
+  const [stats, setStats] = useState({
+    streak: 0,
+    pendingCount: 0,
+    nextTask: null as any,
+    weeklyProgress: 0
+  });
 
   useEffect(() => {
-    if (!user) return;
-
-    const fetchClasses = async () => {
-      const { data: classData } = await supabase
-        .from('classes')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .limit(10);
-
-      if (classData) setClasses(classData);
-    };
-
-    fetchClasses();
+    if (user) fetchSidebarStats();
   }, [user]);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
+  const fetchSidebarStats = async () => {
+    // 1. Get Streak
+    const { data: creditData } = await supabase
+      .from('users_credits')
+      .select('streak_count')
+      .eq('id', user?.id)
+      .single();
+
+    // 2. Get Assignments for "Next Up" logic
+    const { data: assignments } = await supabase
+      .from('assignments')
+      .select('*')
+      .eq('user_id', user?.id)
+      .order('due_date', { ascending: true });
+
+    if (assignments) {
+      const pending = assignments.filter((a: any) => !a.completed);
+      const next = pending.filter((a: any) => a.due_date)[0]; // First item with due date
+      
+      // Calculate a fake "Weekly Goal" based on tasks completed
+      const completedCount = assignments.filter((a: any) => a.completed).length;
+      const progress = Math.min(100, Math.round((completedCount / (completedCount + pending.length || 1)) * 100));
+
+      setStats({
+        streak: creditData?.streak_count || 0,
+        pendingCount: pending.length,
+        nextTask: next,
+        weeklyProgress: progress
+      });
+    }
   };
 
   return (
-    <div className={cn(
-      "h-full bg-gradient-to-b from-slate-50 via-blue-50/30 to-slate-50 border-r border-slate-200 flex flex-col transition-all duration-300 shadow-lg z-50",
-      isCollapsed ? "w-16" : "w-64"
-    )}>
-      {/* Header */}
-      <div className="p-4 flex items-center justify-between border-b border-slate-200/60 h-16 shrink-0 bg-white/50 backdrop-blur-sm">
-        {!isCollapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center text-white font-bold shadow-md">A</div>
-            <span className="font-bold text-slate-800 text-lg">Altus</span>
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 ml-auto"
-        >
-          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
-      </div>
-
-      {/* Main Navigation */}
-      <ScrollArea className="flex-1 py-4">
-        <div className="px-3 space-y-6">
-          
-          <div className="space-y-1.5">
-            <Button
-              onClick={() => router.push('/chat')}
-              variant={pathname === '/chat' ? 'secondary' : 'ghost'}
-              className={cn(
-                "w-full justify-start font-medium transition-all",
-                pathname === '/chat' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
-                isCollapsed && "justify-center px-2"
-              )}
-            >
-              <MessageSquare className="h-5 w-5" />
-              {!isCollapsed && <span className="ml-3">AI Chat</span>}
-            </Button>
-
-            <Button
-              onClick={() => router.push('/classes')}
-              variant={pathname === '/classes' ? 'secondary' : 'ghost'}
-              className={cn(
-                "w-full justify-start font-medium transition-all",
-                pathname === '/classes' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
-                isCollapsed && "justify-center px-2"
-              )}
-            >
-              <LayoutDashboard className="h-5 w-5" />
-              {!isCollapsed && <span className="ml-3">Dashboard</span>}
-            </Button>
-
-            <Button
-              onClick={() => router.push('/settings')}
-              variant={pathname === '/settings' ? 'secondary' : 'ghost'}
-              className={cn(
-                "w-full justify-start font-medium transition-all",
-                pathname === '/settings' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
-                isCollapsed && "justify-center px-2"
-              )}
-            >
-              <Settings className="h-5 w-5" />
-              {!isCollapsed && <span className="ml-3">Settings</span>}
-            </Button>
-          </div>
-
-          {!isCollapsed && (
-            <>
-              {/* Classes List */}
-              <div className="px-2">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">My Classes</h3>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-blue-50 text-slate-400 hover:text-blue-600" onClick={() => router.push('/classes')}>
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="space-y-1.5">
-                  {classes.map((cls) => {
-                    const isActive = pathname === `/classes/${cls.id}`;
-                    return (
-                      <button
-                        key={cls.id}
-                        onClick={() => router.push(`/classes/${cls.id}`)}
-                        className={cn(
-                          "w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2.5 group relative",
-                          isActive
-                            ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md shadow-blue-200 ring-2 ring-blue-300 font-medium"
-                            : "text-slate-700 hover:bg-white hover:text-blue-600 hover:shadow-sm"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-2 h-2 rounded-full transition-all shrink-0",
-                          isActive ? "bg-white shadow-sm" : "bg-slate-300 group-hover:bg-blue-500"
-                        )} />
-                        <span className="truncate">{cls.name}</span>
-                      </button>
-                    );
-                  })}
-                  {classes.length === 0 && <p className="text-xs text-slate-400 px-3 italic">No classes yet</p>}
-                </div>
-              </div>
-            </>
-          )}
+    <div className="w-64 h-screen bg-white border-r border-slate-200 flex flex-col flex-shrink-0 fixed left-0 top-0 z-50">
+      {/* Logo Area */}
+      <div className="p-6 flex items-center gap-3">
+        <div className="bg-indigo-600 p-2 rounded-lg">
+          <GraduationCap className="w-6 h-6 text-white" />
         </div>
-      </ScrollArea>
-
-      {/* Footer Area: Credits & Logout */}
-      <div className="p-4 border-t border-slate-200/60 bg-white/40 backdrop-blur-sm">
-        {!isCollapsed && (
-          <>
-            {/* Streak Counter - Free Users Only */}
-            {!isPro && (
-              <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200 rounded-xl p-4 mb-3 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Flame className={cn("w-4 h-4", currentStreak >= 5 ? "text-orange-500" : "text-orange-400")} />
-                    <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Study Streak</span>
-                  </div>
-                  <span className="text-lg font-bold text-orange-600">{currentStreak}</span>
-                </div>
-
-                <div className="flex gap-1 mb-2">
-                  {[1, 2, 3, 4, 5].map((day) => (
-                    <div
-                      key={day}
-                      className={cn(
-                        "flex-1 h-1.5 rounded-full transition-all duration-300",
-                        currentStreak >= day ? "bg-orange-500" : "bg-orange-200"
-                      )}
-                    />
-                  ))}
-                </div>
-
-                <p className="text-xs text-slate-600">
-                  {currentStreak >= 5 ? (
-                    <span className="font-semibold text-orange-600">Amazing! Keep it up! 🎉</span>
-                  ) : (
-                    <>Study <span className="font-semibold">{5 - currentStreak} more day{5 - currentStreak !== 1 ? 's' : ''}</span> for <span className="font-semibold">+10 credits</span></>
-                  )}
-                </p>
-              </div>
-            )}
-
-            {/* Credits Display */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 shadow-sm">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Daily Limit</span>
-                <span className="text-xs font-bold text-blue-600">{isPro ? '∞' : `${credits}/5`}</span>
-              </div>
-
-              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-3">
-                <div
-                  className={cn("h-full rounded-full transition-all duration-500", isPro ? "bg-gradient-to-r from-blue-500 to-indigo-500 w-full" : "bg-blue-500")}
-                  style={{ width: isPro ? '100%' : `${(credits / 5) * 100}%` }}
-                />
-              </div>
-
-              {!isPro ? (
-                <Button
-                  onClick={() => setShowPaywall(true)}
-                  size="sm"
-                  className="w-full bg-slate-900 text-white hover:bg-slate-800 text-xs h-8 shadow-sm"
-                >
-                  <Sparkles className="w-3 h-3 mr-2 text-yellow-400" />
-                  Upgrade to Pro
-                </Button>
-              ) : (
-                <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 bg-slate-50 py-1.5 rounded-lg border border-slate-100">
-                  <Sparkles className="w-3 h-3 text-blue-500" />
-                  <span>Pro Active</span>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        <Button
-          onClick={handleSignOut}
-          variant="ghost"
-          className={cn(
-            "w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors",
-            isCollapsed && "justify-center px-2"
-          )}
-        >
-          <LogOut className="h-5 w-5" />
-          {!isCollapsed && <span className="ml-3">Sign Out</span>}
-        </Button>
+        <span className="font-bold text-xl text-slate-900 tracking-tight">Altus AI</span>
       </div>
 
-      {showPaywall && (
-        <Suspense fallback={null}>
-          <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
-        </Suspense>
-      )}
+      {/* Navigation */}
+      <div className="flex-1 px-4 space-y-2 overflow-y-auto">
+        {menuItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link key={item.href} href={item.href}>
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
+                isActive 
+                  ? 'bg-indigo-50 text-indigo-700 font-medium' 
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}>
+                <item.icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                {item.label}
+              </div>
+            </Link>
+          );
+        })}
+
+        {/* --- DYNAMIC DASHBOARD WIDGETS --- */}
+        
+        {/* 1. Streak Widget */}
+        <div className="mt-8 px-2">
+          <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-white p-2 rounded-full shadow-sm">
+                <Flame className={`w-4 h-4 ${stats.streak > 0 ? 'text-orange-500 fill-orange-500' : 'text-slate-300'}`} />
+              </div>
+              <div>
+                <p className="text-xs text-orange-600 font-semibold uppercase tracking-wider">Daily Streak</p>
+                <p className="text-lg font-bold text-orange-900">{stats.streak} Days</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Mini "Up Next" Card */}
+        {stats.nextTask && (
+          <div className="mt-4 px-2">
+            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+              <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center">
+                <Clock className="w-3 h-3 mr-1" /> UP NEXT
+              </p>
+              <div className="mb-2">
+                <p className="text-sm font-medium text-slate-800 line-clamp-1">{stats.nextTask.title}</p>
+                <p className="text-xs text-slate-500">Due {new Date(stats.nextTask.due_date).toLocaleDateString()}</p>
+              </div>
+              <Link href={`/classes/${stats.nextTask.class_id}`}>
+                <Button size="sm" variant="outline" className="w-full h-7 text-xs bg-white">
+                  Open Task <ChevronRight className="w-3 h-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Progress Bar */}
+        <div className="mt-4 px-4">
+          <div className="flex justify-between text-xs mb-1.5">
+            <span className="text-slate-500 font-medium">Completion Rate</span>
+            <span className="text-indigo-600 font-bold">{stats.weeklyProgress}%</span>
+          </div>
+          <Progress value={stats.weeklyProgress} className="h-1.5" />
+        </div>
+
+      </div>
+
+      {/* User Footer */}
+      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+        <div className="flex items-center gap-3 mb-3 px-2">
+          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
+            {user?.email?.substring(0, 2).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-slate-900 truncate">{user?.email}</p>
+            <p className="text-xs text-slate-500">Student Plan</p>
+          </div>
+        </div>
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start text-slate-500 hover:text-red-600 hover:bg-red-50 h-8 text-sm"
+          onClick={() => signOut()}
+        >
+          <LogOut className="w-4 h-4 mr-2" /> Sign Out
+        </Button>
+      </div>
     </div>
   );
 }
