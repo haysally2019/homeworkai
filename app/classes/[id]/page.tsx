@@ -38,14 +38,14 @@ export default function ClassDetail() {
   const [newAssign, setNewAssign] = useState({ title: '', due_date: '', type: 'Homework' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Exam Prep
+  // Exam Prep State
   const [selectedForStudy, setSelectedForStudy] = useState<string[]>([]);
   const [generatingGuide, setGeneratingGuide] = useState(false);
   const [studyMode, setStudyMode] = useState<'flashcards' | 'quiz'>('flashcards');
   const [flashcards, setFlashcards] = useState<any[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
 
-  // Note Taker
+  // Note Taker State
   const [showNoteTaker, setShowNoteTaker] = useState(false);
   const [rawNotes, setRawNotes] = useState('');
   const [processingNotes, setProcessingNotes] = useState(false);
@@ -54,7 +54,7 @@ export default function ClassDetail() {
     if (!authLoading && !user) router.push('/login');
   }, [authLoading, user]);
 
-  // --- Actions ---
+  // --- Assignments Logic ---
 
   const addAssignment = async () => {
     if (!newAssign.title) return toast.error("Please enter a title");
@@ -88,42 +88,50 @@ export default function ClassDetail() {
     }
   };
 
+  // --- File Upload Logic (Split for Validation) ---
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // PDF Validation only for manual uploads
+    // 1. STRICT VALIDATION for Manual Uploads
     if (file.type !== 'application/pdf') {
       return toast.error('Only PDF files are supported for manual upload');
     }
+    if (file.size > 10 * 1024 * 1024) {
+      return toast.error('File size must be less than 10MB');
+    }
+
+    // 2. Proceed to Upload
     await processAndUploadFile(file);
-    e.target.value = '';
+    e.target.value = ''; // Reset input
   };
 
+  // Core function: Uploads file to Storage & DB (Bypasses validation for AI Notes)
   const processAndUploadFile = async (file: File) => {
     setUploadingFile(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      // SANITIZE FILENAME: Replace colons and special chars to prevent Storage errors
+      // Sanitize filename to avoid Storage errors
       const sanitizedName = file.name.replace(/[:\/]/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${session.user.id}/${classId}/${Date.now()}_${sanitizedName}`;
 
-      // 1. Upload to Storage
+      // 1. Upload to Storage (Explicit Content-Type is crucial for Markdown)
       const { error: uploadError } = await supabase.storage
         .from('class-documents')
         .upload(filePath, file, { contentType: file.type });
 
       if (uploadError) throw uploadError;
 
-      // 2. Add to DB
+      // 2. Add to Database
       const { data: insertedDoc, error: dbError } = await (supabase as any)
         .from('class_documents')
         .insert([{
           class_id: classId,
           user_id: session.user.id,
-          filename: file.name, // Keep original friendly name here
+          filename: file.name,
           file_path: filePath,
           file_type: file.type,
           file_size: file.size,
@@ -135,9 +143,9 @@ export default function ClassDetail() {
       if (dbError) throw dbError;
 
       toast.success('Saved! AI processing started.');
-      mutateDocuments(); // Optimistic update
+      mutateDocuments(); // Immediate UI update
 
-      // 3. Trigger AI Processing
+      // 3. Trigger Backend Processing
       fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-document`, {
         method: 'POST',
         headers: {
@@ -155,12 +163,14 @@ export default function ClassDetail() {
     }
   };
 
+  // --- Note Taker Logic ---
+
   const handleFinishNotes = async () => {
     if (!rawNotes.trim()) return setShowNoteTaker(false);
     setProcessingNotes(true);
 
     try {
-      // 1. AI Cleanup
+      // 1. AI Formatting
       const res = await fetch('/api/solve', {
         method: 'POST',
         body: JSON.stringify({
@@ -197,7 +207,7 @@ ${rawNotes}`,
       const blob = new Blob([data.response], { type: 'text/markdown' });
       const file = new File([blob], filename, { type: 'text/markdown' });
 
-      // 3. Upload
+      // 3. Upload (Bypasses the "PDF Only" check inside handleFileUpload)
       await processAndUploadFile(file);
       
       setRawNotes('');
@@ -219,7 +229,8 @@ ${rawNotes}`,
     } catch (e) { toast.error('Delete failed'); }
   };
 
-  // Exam Prep Logic (retained)
+  // --- Exam Prep Logic ---
+
   const toggleStudySelection = (aid: string) => {
     setSelectedForStudy(prev => prev.includes(aid) ? prev.filter(id => id !== aid) : [...prev, aid]);
   };
