@@ -39,9 +39,20 @@ async function fetchAssignments(classId: string) {
 async function fetchDocuments(classId: string) {
   const { data, error } = await supabase
     .from('class_documents')
-    .select('id, filename, file_path, upload_date, processing_status')
+    .select('id, filename, file_path, upload_date, processing_status, file_size')
     .eq('class_id', classId)
     .order('upload_date', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+async function fetchNotes(classId: string) {
+  const { data, error } = await supabase
+    .from('class_notes')
+    .select('*')
+    .eq('class_id', classId)
+    .order('created_at', { ascending: false });
 
   if (error) throw error;
   return data;
@@ -116,6 +127,24 @@ export function useDocuments(classId: string | undefined) {
     isLoading,
     isError: error,
     mutate: mutateDocuments,
+  };
+}
+
+export function useNotes(classId: string | undefined) {
+  const { data, error, isLoading, mutate: mutateNotes } = useSWR(
+    classId ? ['notes', classId] : null,
+    ([_, id]) => fetchNotes(id),
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    }
+  );
+
+  return {
+    notes: data || [],
+    isLoading,
+    isError: error,
+    mutate: mutateNotes,
   };
 }
 
@@ -227,4 +256,15 @@ export async function deleteDocument(classId: string, documentId: string, filePa
   if (dbError) throw dbError;
 
   mutate(['documents', classId]);
+}
+
+export async function deleteNote(classId: string, noteId: string) {
+  const { error } = await (supabase as any)
+    .from('class_notes')
+    .delete()
+    .eq('id', noteId);
+
+  if (error) throw error;
+
+  mutate(['notes', classId]);
 }

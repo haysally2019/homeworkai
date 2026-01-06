@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Clock, Upload, File, Trash2, Layers, HelpCircle } from 'lucide-react';
+import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Clock, Upload, File, Trash2, Layers, HelpCircle, PenLine, MessageSquare } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +18,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { FlashcardViewer } from '@/components/FlashcardViewer';
 import { QuizViewer } from '@/components/QuizViewer';
 import { toast } from 'sonner';
-import { useClass, useAssignments, useDocuments, createAssignment, updateAssignment, deleteDocument as deleteDocumentAction } from '@/hooks/use-classes';
+import { useClass, useAssignments, useDocuments, useNotes, createAssignment, updateAssignment, deleteDocument as deleteDocumentAction, deleteNote as deleteNoteAction } from '@/hooks/use-classes';
+import { NoteTaker } from '@/components/NoteTaker';
 
 export default function ClassDetail() {
   const { id } = useParams();
@@ -31,8 +32,10 @@ export default function ClassDetail() {
   const { classData, isLoading: classLoading } = useClass(classId);
   const { assignments, isLoading: assignmentsLoading, mutate: mutateAssignments } = useAssignments(classId);
   const { documents, isLoading: documentsLoading, mutate: mutateDocuments } = useDocuments(classId);
+  const { notes, isLoading: notesLoading, mutate: mutateNotes } = useNotes(classId);
 
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [showNoteTaker, setShowNoteTaker] = useState(false);
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
@@ -181,6 +184,25 @@ export default function ClassDetail() {
       console.error('Error deleting document:', error);
       mutateDocuments(previousDocuments as any, { revalidate: false });
       toast.error('Failed to delete document');
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!confirm('Delete this note? This cannot be undone.')) return;
+
+    const previousNotes = notes;
+    mutateNotes(
+      (notes as any[]).filter((n: any) => n.id !== noteId) as any,
+      { revalidate: false }
+    );
+
+    try {
+      await deleteNoteAction(classId, noteId);
+      toast.success('Note deleted');
+    } catch (error: any) {
+      console.error('Error deleting note:', error);
+      mutateNotes(previousNotes as any, { revalidate: false });
+      toast.error('Failed to delete note');
     }
   };
 
@@ -385,22 +407,31 @@ Ensure correctAnswer is the index (0-3) of the correct option.`;
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-800">Class Materials</h2>
-                <p className="text-sm text-slate-500 mt-1">Upload syllabi, notes, and study materials for AI-enhanced help</p>
+                <p className="text-sm text-slate-500 mt-1">Upload documents and take notes for AI-enhanced help</p>
               </div>
-              <label htmlFor="file-upload">
+              <div className="flex gap-2">
                 <Button
-                  onClick={() => document.getElementById('file-upload')?.click()}
+                  onClick={() => setShowNoteTaker(true)}
                   size="sm"
-                  disabled={uploadingFile}
-                  className="bg-emerald-600 hover:bg-emerald-700"
+                  className="bg-blue-600 hover:bg-blue-700"
                 >
-                  {uploadingFile ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
-                  ) : (
-                    <><Upload className="w-4 h-4 mr-2" /> Upload PDF</>
-                  )}
+                  <PenLine className="w-4 h-4 mr-2" /> Take Notes
                 </Button>
-              </label>
+                <label htmlFor="file-upload">
+                  <Button
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                    size="sm"
+                    disabled={uploadingFile}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {uploadingFile ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
+                    ) : (
+                      <><Upload className="w-4 h-4 mr-2" /> Upload PDF</>
+                    )}
+                  </Button>
+                </label>
+              </div>
               <input
                 id="file-upload"
                 type="file"
@@ -410,70 +441,126 @@ Ensure correctAnswer is the index (0-3) of the correct option.`;
               />
             </div>
 
-            {documents.length === 0 && (
+            {documents.length === 0 && notes.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-white rounded-xl border-2 border-slate-200 border-dashed">
-                <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
-                  <Upload className="w-8 h-8 text-emerald-300" />
+                <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-4">
+                  <FileText className="w-8 h-8 text-blue-300" />
                 </div>
-                <p className="text-lg font-medium text-slate-600 mb-2">No materials uploaded yet</p>
+                <p className="text-lg font-medium text-slate-600 mb-2">No materials yet</p>
                 <p className="text-sm text-slate-500 mb-4 max-w-md text-center">
-                  Upload your syllabus, class notes, or study materials to get AI responses tailored to your professor's teaching style
+                  Take notes during class or upload documents to get AI responses tailored to your coursework
                 </p>
-                <Button
-                  onClick={() => document.getElementById('file-upload')?.click()}
-                  variant="outline"
-                  className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
-                >
-                  <Upload className="w-4 h-4 mr-2" /> Upload Your First Document
-                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => setShowNoteTaker(true)}
+                    variant="outline"
+                    className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                  >
+                    <PenLine className="w-4 h-4 mr-2" /> Take Notes
+                  </Button>
+                  <Button
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                    variant="outline"
+                    className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                  >
+                    <Upload className="w-4 h-4 mr-2" /> Upload PDF
+                  </Button>
+                </div>
               </div>
             )}
 
-            <div className="grid gap-3">
-              {(documents as any[]).map((doc: any) => (
-                <Card key={doc.id} className="p-4 flex items-center gap-4 bg-white border-slate-200 hover:shadow-md transition-all">
-                  <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                    <File className="w-5 h-5 text-red-600" />
-                  </div>
+            {notes.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-blue-600" />
+                  Class Notes
+                </h3>
+                {(notes as any[]).map((note: any) => (
+                  <Card key={note.id} className="p-4 bg-white border-slate-200 hover:shadow-md transition-all">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                        <MessageSquare className="w-5 h-5 text-blue-600" />
+                      </div>
 
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-slate-800 truncate">{doc.filename}</h3>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs text-slate-500">
-                        {new Date(doc.upload_date).toLocaleDateString()}
-                      </span>
-                      <span className="text-xs text-slate-400">•</span>
-                      <span className="text-xs text-slate-500">
-                        {(doc.file_size / 1024 / 1024).toFixed(2)} MB
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={
-                          doc.processing_status === 'completed' ? 'border-emerald-500 text-emerald-700 bg-emerald-50' :
-                          doc.processing_status === 'processing' ? 'border-blue-500 text-blue-700 bg-blue-50' :
-                          doc.processing_status === 'failed' ? 'border-red-500 text-red-700 bg-red-50' :
-                          'border-orange-500 text-orange-700 bg-orange-50'
-                        }
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-slate-800 mb-1">{note.title}</h3>
+                        <p className="text-sm text-slate-600 mb-2 line-clamp-2">{note.summary}</p>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <Clock className="w-3 h-3" />
+                          {new Date(note.created_at).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteNote(note.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
-                        {doc.processing_status === 'completed' && '✓ Processed'}
-                        {doc.processing_status === 'processing' && '⟳ Processing'}
-                        {doc.processing_status === 'failed' && '✗ Failed'}
-                        {doc.processing_status === 'pending' && '⏱ Pending'}
-                      </Badge>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                  </div>
+                  </Card>
+                ))}
+              </div>
+            )}
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteDocument(doc.id, doc.file_path)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </Card>
-              ))}
-            </div>
+            {documents.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <File className="w-4 h-4 text-red-600" />
+                  Documents
+                </h3>
+                {(documents as any[]).map((doc: any) => (
+                  <Card key={doc.id} className="p-4 flex items-center gap-4 bg-white border-slate-200 hover:shadow-md transition-all">
+                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                      <File className="w-5 h-5 text-red-600" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-slate-800 truncate">{doc.filename}</h3>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs text-slate-500">
+                          {new Date(doc.upload_date).toLocaleDateString()}
+                        </span>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs text-slate-500">
+                          {(doc.file_size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={
+                            doc.processing_status === 'completed' ? 'border-emerald-500 text-emerald-700 bg-emerald-50' :
+                            doc.processing_status === 'processing' ? 'border-blue-500 text-blue-700 bg-blue-50' :
+                            doc.processing_status === 'failed' ? 'border-red-500 text-red-700 bg-red-50' :
+                            'border-orange-500 text-orange-700 bg-orange-50'
+                          }
+                        >
+                          {doc.processing_status === 'completed' && '✓ Processed'}
+                          {doc.processing_status === 'processing' && '⟳ Processing'}
+                          {doc.processing_status === 'failed' && '✗ Failed'}
+                          {doc.processing_status === 'pending' && '⏱ Pending'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteDocument(doc.id, doc.file_path)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+            )}
 
             {documents.length > 0 && (
               <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -737,6 +824,14 @@ Ensure correctAnswer is the index (0-3) of the correct option.`;
           </div>
         </SheetContent>
       </Sheet>
+
+      <NoteTaker
+        open={showNoteTaker}
+        onOpenChange={setShowNoteTaker}
+        classId={classId}
+        userId={user?.id || ''}
+        onNoteSaved={() => mutateNotes()}
+      />
     </div>
   );
 }
