@@ -19,7 +19,7 @@ export default function SettingsPage() {
       price: '$0',
       period: '/forever',
       icon: Zap,
-      features: ['5 AI Solves/day', 'Basic Explanations', 'Community Support'],
+      features: ['5 AI Solves/day', '1 Free Class', 'Basic Explanations', 'Community Support'],
       current: !isPro,
       action: null
     },
