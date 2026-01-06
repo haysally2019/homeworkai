@@ -1,9 +1,8 @@
 import useSWR, { mutate } from 'swr';
 import { createClient } from '@/lib/supabase/client';
 
-const supabase = createClient();
-
 async function fetchClasses(userId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('classes')
     .select('*')
@@ -15,6 +14,7 @@ async function fetchClasses(userId: string) {
 }
 
 async function fetchClassById(classId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('classes')
     .select('*')
@@ -26,6 +26,7 @@ async function fetchClassById(classId: string) {
 }
 
 async function fetchAssignments(classId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('assignments')
     .select('*')
@@ -37,6 +38,7 @@ async function fetchAssignments(classId: string) {
 }
 
 async function fetchDocuments(classId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('class_documents')
     .select('id, filename, file_path, upload_date, processing_status, file_size')
@@ -48,6 +50,7 @@ async function fetchDocuments(classId: string) {
 }
 
 async function fetchNotes(classId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('class_notes')
     .select('*')
@@ -149,6 +152,7 @@ export function useNotes(classId: string | undefined) {
 }
 
 export async function createClass(userId: string, classData: any) {
+  const supabase = createClient();
   const { data: userCredits } = await supabase
     .from('users_credits')
     .select('is_pro')
@@ -179,6 +183,7 @@ export async function createClass(userId: string, classData: any) {
 }
 
 export async function updateClass(classId: string, updates: any) {
+  const supabase = createClient();
   const { data, error } = await (supabase as any)
     .from('classes')
     .update(updates)
@@ -193,6 +198,7 @@ export async function updateClass(classId: string, updates: any) {
 }
 
 export async function deleteClass(userId: string, classId: string) {
+  const supabase = createClient();
   const { error } = await (supabase as any)
     .from('classes')
     .delete()
@@ -204,6 +210,7 @@ export async function deleteClass(userId: string, classId: string) {
 }
 
 export async function createAssignment(classId: string, assignmentData: any) {
+  const supabase = createClient();
   const { data, error } = await (supabase as any)
     .from('assignments')
     .insert([{ ...assignmentData, class_id: classId }])
@@ -217,6 +224,7 @@ export async function createAssignment(classId: string, assignmentData: any) {
 }
 
 export async function updateAssignment(classId: string, assignmentId: string, updates: any) {
+  const supabase = createClient();
   const { data, error } = await (supabase as any)
     .from('assignments')
     .update(updates)
@@ -231,6 +239,7 @@ export async function updateAssignment(classId: string, assignmentId: string, up
 }
 
 export async function deleteAssignment(classId: string, assignmentId: string) {
+  const supabase = createClient();
   const { error } = await (supabase as any)
     .from('assignments')
     .delete()
@@ -242,6 +251,7 @@ export async function deleteAssignment(classId: string, assignmentId: string) {
 }
 
 export async function deleteDocument(classId: string, documentId: string, filePath: string) {
+  const supabase = createClient();
   const { error: storageError } = await supabase.storage
     .from('class-documents')
     .remove([filePath]);
@@ -259,6 +269,7 @@ export async function deleteDocument(classId: string, documentId: string, filePa
 }
 
 export async function deleteNote(classId: string, noteId: string) {
+  const supabase = createClient();
   const { error } = await (supabase as any)
     .from('class_notes')
     .delete()
