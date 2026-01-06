@@ -105,11 +105,15 @@ export default function ClassDetail() {
     }
   };
 
+  // -------------------------------------------------------------------------
+  // UPDATED FILE UPLOAD LOGIC
+  // -------------------------------------------------------------------------
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // --- RESTORED VALIDATION LOGIC ---
+    // VALIDATION ONLY APPLIES TO MANUAL UPLOADS
     if (file.type !== 'application/pdf') {
       toast.error('Only PDF files are supported for upload');
       return;
@@ -119,13 +123,12 @@ export default function ClassDetail() {
       toast.error('File size must be less than 10MB');
       return;
     }
-    // ---------------------------------
 
     await processAndUploadFile(file);
     e.target.value = ''; // Reset input
   };
 
-  // Shared function to handle file uploading (used by normal upload AND note taker)
+  // Shared function: removed validation to allow Markdown from Note Taker
   const processAndUploadFile = async (file: File) => {
     setUploadingFile(true);
     try {
@@ -148,7 +151,7 @@ export default function ClassDetail() {
           user_id: session.user.id,
           filename: file.name,
           file_path: filePath,
-          file_type: file.type,
+          file_type: file.type, // 'text/markdown' for notes, 'application/pdf' for uploads
           file_size: file.size,
           processing_status: 'pending'
         }])
@@ -173,6 +176,7 @@ export default function ClassDetail() {
     } catch (error: any) {
       console.error('Error uploading file:', error);
       toast.error(error.message || 'Failed to save document');
+      throw error; // Rethrow to let caller know
     } finally {
       setUploadingFile(false);
     }
@@ -206,11 +210,20 @@ export default function ClassDetail() {
     setProcessingNotes(true);
     try {
       // 1. Send raw notes to AI for cleaning
+      // Use SOLVER mode to force action (formatting) rather than tutoring
       const res = await fetch('/api/solve', {
         method: 'POST',
         body: JSON.stringify({
-          text: `Organize and format these class notes. Use clear headings, bullet points, and fix any obvious typos. Keep the tone academic.\n\nRAW NOTES:\n${rawNotes}`,
-          mode: 'tutor',
+          text: `TASK: Reformat the following class notes into clean Markdown.
+          
+INSTRUCTIONS:
+- Fix typos and grammar.
+- Use # Headings, - Bullet points, and **Bold** for key terms.
+- Do NOT add conversational text like "Here are your notes". Just output the notes.
+
+RAW NOTES:
+${rawNotes}`,
+          mode: 'solver', 
           userId: user?.id,
           classId: classId
         }),
@@ -222,15 +235,17 @@ export default function ClassDetail() {
       // 2. Create a File object from the AI response
       const noteContent = `# Class Notes: ${new Date().toLocaleDateString()}\n\n${data.response}`;
       const blob = new Blob([noteContent], { type: 'text/markdown' });
-      const filename = `Notes - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString().slice(0,5).replace(':','-')}.md`;
+      // Create a friendly filename
+      const filename = `Notes_${new Date().toLocaleDateString().replace(/\//g, '-')}.md`;
+      
       const file = new File([blob], filename, { type: 'text/markdown' });
 
-      // 3. Upload using existing logic
+      // 3. Upload using refactored logic
       await processAndUploadFile(file);
       
       setRawNotes('');
       setShowNoteTaker(false);
-      toast.success("Notes processed and saved to Materials!");
+      // Toast success is already handled in processAndUploadFile
 
     } catch (error) {
       console.error(error);
@@ -408,7 +423,6 @@ Return ONLY a valid JSON array in this exact format (no markdown, no code blocks
               </div>
             </div>
 
-            {/* --- RESTORED EMPTY STATE --- */}
             {documents.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-white rounded-xl border-2 border-slate-200 border-dashed">
                 <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
@@ -443,7 +457,6 @@ Return ONLY a valid JSON array in this exact format (no markdown, no code blocks
               ))}
             </div>
 
-            {/* --- RESTORED INFO BOX --- */}
             {documents.length > 0 && (
               <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex gap-3">
