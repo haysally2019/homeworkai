@@ -520,4 +520,106 @@ Return ONLY a valid JSON array in this exact format (no markdown, no code blocks
 
       {/* Note Taker Modal */}
       <Dialog open={showNoteTaker} onOpenChange={(open) => !processingNotes && setShowNoteTaker(open)}>
-        <DialogContent className="max-w-4xl h-[80vh]
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col bg-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PenTool className="w-5 h-5 text-indigo-600" /> Live Note Taker
+            </DialogTitle>
+            <DialogDescription>
+              Take raw notes here. When you finish, AI will summarize and format them into a study guide.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 py-4">
+            <Textarea 
+              value={rawNotes}
+              onChange={(e) => setRawNotes(e.target.value)}
+              placeholder="Start typing your notes here... don't worry about formatting!&#10;&#10;Example:&#10;Prof said mitochondria is power house of cell&#10;3 types of rocks: igneous, sedimentary, metamorphic"
+              className="h-full resize-none text-base p-6 leading-relaxed font-mono bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowNoteTaker(false)} disabled={processingNotes}>
+              Cancel
+            </Button>
+            <Button onClick={handleFinishNotes} disabled={!rawNotes.trim() || processingNotes} className="bg-indigo-600 hover:bg-indigo-700 min-w-[160px]">
+              {processingNotes ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
+              ) : (
+                <><CheckCircle className="w-4 h-4 mr-2" /> Save & Format</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Assignment Modal */}
+      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+        <DialogContent className="bg-white sm:max-w-[425px]">
+          <DialogHeader><DialogTitle>New Assignment</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+               <label className="text-sm font-medium">Title</label>
+               <Input value={newAssign.title} onChange={e => setNewAssign({...newAssign, title: e.target.value})} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                 <label className="text-sm font-medium">Type</label>
+                 <Select onValueChange={(val) => setNewAssign({...newAssign, type: val})} defaultValue="Homework">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Homework">Homework</SelectItem>
+                    <SelectItem value="Quiz">Quiz</SelectItem>
+                    <SelectItem value="Exam">Exam</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                 <label className="text-sm font-medium">Due Date</label>
+                 <Input type="date" value={newAssign.due_date} onChange={e => setNewAssign({...newAssign, due_date: e.target.value})} />
+              </div>
+            </div>
+            <Button onClick={addAssignment} disabled={isSubmitting} className="w-full bg-blue-600 mt-4">Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assignment Detail Sheet */}
+      <Sheet open={!!selectedAssignment} onOpenChange={(open) => !open && setSelectedAssignment(null)}>
+        <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto bg-white">
+          <SheetHeader className="mb-6">
+            <SheetTitle>{selectedAssignment?.title}</SheetTitle>
+            <div className="flex items-center gap-2 mt-2">
+              <Badge variant="outline">{selectedAssignment?.type}</Badge>
+              {selectedAssignment?.due_date && <span className="text-sm text-slate-500">Due {new Date(selectedAssignment.due_date).toLocaleDateString()}</span>}
+            </div>
+          </SheetHeader>
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-3">
+                <Card className="p-4 cursor-pointer hover:border-blue-500" onClick={() => router.push(`/chat?mode=solver&assignmentId=${selectedAssignment.id}&context=${encodeURIComponent(selectedAssignment?.title)}`)}>
+                  <div className="font-medium text-sm text-blue-600 mb-1">Solver Mode</div>
+                  <div className="text-xs text-slate-500">Step-by-step help</div>
+                </Card>
+                <Card className="p-4 cursor-pointer hover:border-purple-500" onClick={() => router.push(`/chat?mode=tutor&assignmentId=${selectedAssignment.id}&context=${encodeURIComponent(selectedAssignment?.title)}`)}>
+                  <div className="font-medium text-sm text-purple-600 mb-1">Tutor Mode</div>
+                  <div className="text-xs text-slate-500">Concept breakdown</div>
+                </Card>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+function getDueDateColor(dateStr: string, completed: boolean) {
+  if (completed) return 'text-slate-400';
+  const today = new Date();
+  const due = new Date(dateStr);
+  const diffTime = due.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  if (diffDays < 0) return 'text-red-500 font-medium';
+  if (diffDays <= 2) return 'text-orange-500 font-medium';
+  return 'text-slate-500';
+}
