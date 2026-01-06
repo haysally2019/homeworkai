@@ -35,7 +35,6 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (!userCredits) {
-      // Create if missing
       const { data: newCredits } = await supabase
         .from('users_credits')
         .insert({ id: userId, credits: 5, is_pro: false })
@@ -44,7 +43,6 @@ export async function POST(request: NextRequest) {
       userCredits = newCredits;
     }
 
-    // Hard Stop if 0 credits (and not pro)
     if (!userCredits.is_pro && userCredits.credits < 1) {
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
@@ -52,19 +50,15 @@ export async function POST(request: NextRequest) {
     // 2. Initialize Gemini 2.0
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
     
-    // *** CRITICAL UPDATE: USING GEMINI 2.0 ***
+    // *** UPGRADE TO GEMINI 2.0 ***
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp', // Updated from 1.5-flash
+      model: 'gemini-2.0-flash-exp', 
       systemInstruction: SYSTEM_PROMPT,
     });
 
-    let prompt = mode === 'solver' 
-      ? `[SOLVER TASK]\n${text}` 
-      : `[TUTOR TASK]\n${text}`;
-      
+    let prompt = mode === 'solver' ? `[SOLVER TASK]\n${text}` : `[TUTOR TASK]\n${text}`;
     if (context) prompt += `\n\nCONTEXT FROM ASSIGNMENT:\n${context}`;
     
-    // 3. Generate
     let result;
     if (imageBase64) {
       const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
@@ -75,7 +69,6 @@ export async function POST(request: NextRequest) {
 
     const responseText = await result.response.text();
 
-    // 4. Deduct Credit (if not pro)
     if (!userCredits.is_pro) {
       await supabase.from('users_credits').update({ credits: userCredits.credits - 1 }).eq('id', userId);
     }
