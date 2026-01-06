@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -17,8 +17,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PaywallModal } from '@/components/PaywallModal';
 import { cn } from '@/lib/utils';
+
+const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 
 interface Class {
   id: string;
@@ -247,7 +248,11 @@ export function Sidebar() {
         </Button>
       </div>
 
-      <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
+      {showPaywall && (
+        <Suspense fallback={null}>
+          <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Send, Loader2, LayoutDashboard, History } from 'lucide-react';
+import { Camera, Send, Loader2, LayoutDashboard } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
-import { PaywallModal } from '@/components/PaywallModal';
-import { MathToolbar } from '@/components/MathToolbar';
 import { toast } from 'sonner';
+
+const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
+const MathToolbar = lazy(() => import('@/components/MathToolbar').then(m => ({ default: m.MathToolbar })));
 
 type Message = { role: 'user' | 'assistant'; content: string; image?: string; };
 
@@ -358,7 +359,9 @@ export default function ChatPage() {
 
       {/* Input Area */}
       <div className="absolute bottom-0 w-full bg-white/80 backdrop-blur border-t border-slate-200">
-        <MathToolbar onInsert={handleInsertLatex} />
+        <Suspense fallback={<div className="h-12" />}>
+          <MathToolbar onInsert={handleInsertLatex} />
+        </Suspense>
         <div className="p-4">
           <form onSubmit={handleSubmit} className="relative max-w-3xl mx-auto flex gap-3 items-end">
           {selectedImage && (
@@ -389,7 +392,11 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
+      {showPaywall && (
+        <Suspense fallback={null}>
+          <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
