@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { FlashcardViewer } from '@/components/FlashcardViewer';
 import { QuizViewer } from '@/components/QuizViewer';
+import { MessageRenderer } from '@/components/MessageRenderer';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { useClass, useAssignments, useDocuments, createAssignment, updateAssignment, deleteDocument as deleteDocumentAction } from '@/hooks/use-classes';
@@ -31,6 +32,10 @@ export default function ClassDetail() {
   const { classData, isLoading: classLoading } = useClass(classId);
   const { assignments, mutate: mutateAssignments } = useAssignments(classId);
   const { documents, mutate: mutateDocuments } = useDocuments(classId);
+
+  // Fetch notes
+  const [notes, setNotes] = useState<any[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(true);
 
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -49,10 +54,35 @@ export default function ClassDetail() {
   const [showNoteTaker, setShowNoteTaker] = useState(false);
   const [rawNotes, setRawNotes] = useState('');
   const [processingNotes, setProcessingNotes] = useState(false);
+  const [viewingNote, setViewingNote] = useState<any | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
   }, [authLoading, user]);
+
+  // Load notes
+  useEffect(() => {
+    if (!user || !classId) return;
+    const loadNotes = async () => {
+      setLoadingNotes(true);
+      try {
+        const { data, error } = await (supabase as any)
+          .from('class_notes')
+          .select('*')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          setNotes(data);
+        }
+      } catch (e) {
+        console.error('Failed to load notes:', e);
+      } finally {
+        setLoadingNotes(false);
+      }
+    };
+    loadNotes();
+  }, [user, classId]);
 
   // --- Assignments Logic ---
 
@@ -170,23 +200,30 @@ export default function ClassDetail() {
     setProcessingNotes(true);
 
     try {
-      // 1. AI Formatting
+      // 1. AI Formatting and Summarization
       const res = await fetch('/api/solve', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: `You are an expert academic note-taker.
-TASK: Format these raw notes into a clean Markdown study guide.
+TASK: Format these raw notes into a clean Markdown study guide AND provide a brief summary.
 
 STRUCTURE:
 # [Topic Name]
-## 📝 Executive Summary
-(Write a 50-word summary of the core concepts here)
+
+## 📝 Summary
+[Write a concise 2-3 sentence summary of the key points]
 
 ## 🔑 Key Concepts
-(List key terms and definitions, bolding the **term**)
+- **Term 1**: Definition
+- **Term 2**: Definition
 
 ## 📚 Detailed Notes
-(Cleaned up bullet points from the raw notes)
+[Organized bullet points from the raw notes]
+
+## 💡 Key Takeaways
+- Important point 1
+- Important point 2
 
 RAW NOTES:
 ${rawNotes}`,
@@ -199,22 +236,50 @@ ${rawNotes}`,
       const data = await res.json();
       if (!data.response) throw new Error("AI processing failed");
 
-      // 2. Create Markdown File
-      const dateStr = new Date().toISOString().split('T')[0];
-      const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
-      const filename = `Notes_${dateStr}_${timeStr}.md`;
-      
-      const blob = new Blob([data.response], { type: 'text/markdown' });
-      const file = new File([blob], filename, { type: 'text/markdown' });
+      // 2. Extract summary from the formatted notes
+      const formattedNotes = data.response;
+      const summaryMatch = formattedNotes.match(/##\s*📝\s*Summary\s*\n([\s\S]*?)(?=\n##|$)/i);
+      const summary = summaryMatch
+        ? summaryMatch[1].trim()
+        : rawNotes.slice(0, 200) + '...';
 
-      // 3. Upload (Bypasses the "PDF Only" check inside handleFileUpload)
-      await processAndUploadFile(file);
-      
+      // 3. Extract title from the formatted notes
+      const titleMatch = formattedNotes.match(/^#\s*(.+)$/m);
+      const title = titleMatch
+        ? titleMatch[1].trim()
+        : `Notes - ${new Date().toLocaleDateString()}`;
+
+      // 4. Save to database
+      const { error: insertError } = await (supabase as any)
+        .from('class_notes')
+        .insert({
+          class_id: classId,
+          user_id: user?.id,
+          title: title,
+          raw_notes: rawNotes,
+          formatted_notes: formattedNotes,
+          summary: summary
+        });
+
+      if (insertError) throw insertError;
+
+      toast.success("Notes saved successfully!");
+
+      // 5. Refresh notes list
+      const { data: updatedNotes } = await (supabase as any)
+        .from('class_notes')
+        .select('*')
+        .eq('class_id', classId)
+        .order('created_at', { ascending: false });
+
+      if (updatedNotes) setNotes(updatedNotes);
+
       setRawNotes('');
       setShowNoteTaker(false);
 
-    } catch (e) {
-      toast.error("Failed to save notes");
+    } catch (e: any) {
+      console.error('Note save error:', e);
+      toast.error(e.message || "Failed to save notes");
     } finally {
       setProcessingNotes(false);
     }
@@ -227,6 +292,24 @@ ${rawNotes}`,
       mutateDocuments();
       toast.success('Deleted');
     } catch (e) { toast.error('Delete failed'); }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!confirm('Delete this note?')) return;
+    try {
+      const { error } = await (supabase as any)
+        .from('class_notes')
+        .delete()
+        .eq('id', noteId);
+
+      if (error) throw error;
+
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+      toast.success('Note deleted');
+      setViewingNote(null);
+    } catch (e) {
+      toast.error('Delete failed');
+    }
   };
 
   // --- Exam Prep Logic ---
@@ -281,7 +364,7 @@ ${rawNotes}`,
           <TabsContent value="materials" className="flex-1 overflow-y-auto space-y-4">
             <div className="grid gap-4">
               {/* Quick Action Card */}
-              <Card onClick={() => setShowNoteTaker(true)} className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100 cursor-pointer hover:shadow-md transition-all flex items-center justify-between group">
+              <Card onClick={() => setShowNoteTaker(true)} className="p-6 bg-gradient-to-r from-blue-50 to-sky-50 border-blue-100 cursor-pointer hover:shadow-md transition-all flex items-center justify-between group">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-blue-600 shadow-sm">
                     <FileEdit className="w-6 h-6" />
@@ -294,6 +377,46 @@ ${rawNotes}`,
                 <Button className="bg-blue-600 group-hover:bg-blue-700">Open Note Taker</Button>
               </Card>
 
+              {/* Notes Section */}
+              {notes.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                    <PenTool className="w-4 h-4" /> Your Notes
+                  </h3>
+                  {notes.map((note: any) => (
+                    <Card
+                      key={note.id}
+                      className="p-4 hover:bg-slate-50 transition-colors cursor-pointer border-l-4 border-l-blue-500"
+                      onClick={() => setViewingNote(note)}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded flex items-center justify-center bg-blue-100 text-blue-600 shrink-0">
+                          <PenTool className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-slate-900 mb-1">{note.title}</h4>
+                          <p className="text-sm text-slate-600 line-clamp-2">{note.summary}</p>
+                          <span className="text-xs text-slate-400 mt-2 block">
+                            {new Date(note.created_at).toLocaleDateString()} at {new Date(note.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteNote(note.id);
+                          }}
+                          className="text-slate-400 hover:text-red-600 shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4"/>
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
               {/* Upload Button */}
               <div className="flex justify-end">
                 <label>
@@ -305,23 +428,30 @@ ${rawNotes}`,
               </div>
 
               {/* Document List */}
-              {documents?.map((doc: any) => (
-                <Card key={doc.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
-                  <div className={`w-10 h-10 rounded flex items-center justify-center ${doc.file_type === 'text/markdown' ? 'bg-purple-100 text-purple-600' : 'bg-red-100 text-red-600'}`}>
-                    <File className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-slate-900">{doc.filename}</h4>
-                    <div className="flex gap-2 mt-1">
-                      <Badge variant={doc.processing_status === 'completed' ? 'default' : 'outline'} className={doc.processing_status === 'completed' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'text-slate-500'}>
-                        {doc.processing_status === 'completed' ? 'Ready' : 'Processing...'}
-                      </Badge>
-                      <span className="text-xs text-slate-400 self-center">{new Date(doc.upload_date).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => handleDeleteDocument(doc.id, doc.file_path)} className="text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></Button>
-                </Card>
-              ))}
+              {documents && documents.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                    <FileText className="w-4 h-4" /> Documents
+                  </h3>
+                  {documents.map((doc: any) => (
+                    <Card key={doc.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+                      <div className={`w-10 h-10 rounded flex items-center justify-center ${doc.file_type === 'text/markdown' ? 'bg-purple-100 text-purple-600' : 'bg-red-100 text-red-600'}`}>
+                        <File className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-slate-900">{doc.filename}</h4>
+                        <div className="flex gap-2 mt-1">
+                          <Badge variant={doc.processing_status === 'completed' ? 'default' : 'outline'} className={doc.processing_status === 'completed' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'text-slate-500'}>
+                            {doc.processing_status === 'completed' ? 'Ready' : 'Processing...'}
+                          </Badge>
+                          <span className="text-xs text-slate-400 self-center">{new Date(doc.upload_date).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteDocument(doc.id, doc.file_path)} className="text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></Button>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </TabsContent>
 
@@ -413,6 +543,59 @@ ${rawNotes}`,
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* VIEW NOTE MODAL */}
+      <Sheet open={!!viewingNote} onOpenChange={(open) => !open && setViewingNote(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          {viewingNote && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="text-2xl font-bold pr-8">{viewingNote.title}</SheetTitle>
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <span>{new Date(viewingNote.created_at).toLocaleDateString()}</span>
+                  <span>•</span>
+                  <span>{new Date(viewingNote.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              </SheetHeader>
+
+              <div className="mt-6 space-y-6">
+                {/* Summary Card */}
+                <Card className="p-4 bg-blue-50 border-blue-200">
+                  <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" /> Summary
+                  </h3>
+                  <p className="text-slate-700">{viewingNote.summary}</p>
+                </Card>
+
+                {/* Formatted Notes */}
+                <div className="prose prose-sm max-w-none">
+                  <div className="bg-white p-6 rounded-lg border">
+                    <MessageRenderer content={viewingNote.formatted_notes} role="assistant" />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleDeleteNote(viewingNote.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete Note
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setViewingNote(null)}
+                    className="ml-auto"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
