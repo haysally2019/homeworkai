@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { FlashcardViewer } from '@/components/FlashcardViewer';
 import { QuizViewer } from '@/components/QuizViewer';
+import { NoteTaker } from '@/components/NoteTaker';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { useClass, useAssignments, useDocuments, createAssignment, updateAssignment, deleteDocument as deleteDocumentAction } from '@/hooks/use-classes';
@@ -47,8 +48,6 @@ export default function ClassDetail() {
 
   // Note Taker
   const [showNoteTaker, setShowNoteTaker] = useState(false);
-  const [rawNotes, setRawNotes] = useState('');
-  const [processingNotes, setProcessingNotes] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
@@ -160,60 +159,6 @@ export default function ClassDetail() {
     }
   };
 
-  const handleFinishNotes = async () => {
-    if (!rawNotes.trim()) return setShowNoteTaker(false);
-    setProcessingNotes(true);
-
-    try {
-      // 1. AI Summarization
-      const res = await fetch('/api/solve', {
-        method: 'POST',
-        body: JSON.stringify({
-          text: `You are an expert academic note-taker.
-TASK: Format these raw notes into a clean Markdown study guide.
-
-STRUCTURE:
-# [Topic Name]
-## 📝 Executive Summary
-(50-word summary of core concepts)
-
-## 🔑 Key Concepts
-(List key terms and definitions)
-
-## 📚 Detailed Notes
-(Cleaned up bullet points)
-
-RAW NOTES:
-${rawNotes}`,
-          mode: 'solver', // Use 'solver' to force output generation
-          userId: user?.id,
-          classId: classId
-        }),
-      });
-
-      const data = await res.json();
-      if (!data.response) throw new Error("AI processing failed");
-
-      // 2. Create File
-      const dateStr = new Date().toISOString().split('T')[0];
-      const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
-      const filename = `Notes_${dateStr}_${timeStr}.md`;
-      
-      const blob = new Blob([data.response], { type: 'text/markdown' });
-      const file = new (File as any)([blob], filename, { type: 'text/markdown' }) as File;
-
-      // 3. Upload (Bypasses manual validation)
-      await processAndUploadFile(file);
-      
-      setRawNotes('');
-      setShowNoteTaker(false);
-
-    } catch (e) {
-      toast.error("Failed to save notes");
-    } finally {
-      setProcessingNotes(false);
-    }
-  };
 
   const handleDeleteDocument = async (docId: string, filePath: string) => {
     if (!confirm('Delete this?')) return;
@@ -359,26 +304,12 @@ ${rawNotes}`,
         </Tabs>
       </div>
 
-      <Dialog open={showNoteTaker} onOpenChange={(o) => !processingNotes && setShowNoteTaker(o)}>
-        <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Live Note Taker</DialogTitle>
-            <DialogDescription>Jot down raw notes. AI will format and summarize them.</DialogDescription>
-          </DialogHeader>
-          <Textarea 
-            value={rawNotes} 
-            onChange={e => setRawNotes(e.target.value)} 
-            placeholder="Type your notes here..." 
-            className="flex-1 resize-none p-4 font-mono text-base"
-          />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowNoteTaker(false)}>Cancel</Button>
-            <Button onClick={handleFinishNotes} disabled={processingNotes}>
-              {processingNotes ? <><Loader2 className="animate-spin mr-2"/> Processing</> : "Format & Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <NoteTaker
+        open={showNoteTaker}
+        onOpenChange={setShowNoteTaker}
+        classId={classId}
+        userId={user?.id || ''}
+      />
 
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
         <DialogContent>
