@@ -24,7 +24,6 @@ export function NoteTaker({ open, onOpenChange, userId, classId, onSave }: NoteT
     setProcessing(true);
 
     try {
-      // AI Summarization Call
       const res = await fetch('/api/solve', {
         method: 'POST',
         body: JSON.stringify({
@@ -44,7 +43,7 @@ STRUCTURE:
 
 RAW NOTES:
 ${rawNotes}`,
-          mode: 'solver',
+          mode: 'solver', // Solver ensures it follows instructions exactly
           userId: userId,
           classId: classId
         }),
@@ -53,15 +52,16 @@ ${rawNotes}`,
       const data = await res.json();
       if (!data.response) throw new Error("AI processing failed");
 
-      // Create Markdown File
+      // 1. Generate Safe Filename
       const dateStr = new Date().toISOString().split('T')[0];
       const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
       const filename = `Notes_${dateStr}_${timeStr}.md`;
       
+      // 2. Create File with Correct MIME Type
       const blob = new Blob([data.response], { type: 'text/markdown' });
       const file = new File([blob], filename, { type: 'text/markdown' });
 
-      // Pass back to parent to upload
+      // 3. Save
       await onSave(file);
       
       setRawNotes('');
