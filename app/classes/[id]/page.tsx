@@ -7,16 +7,18 @@ import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Upload, File, Trash2, Layers, HelpCircle, PenTool, FileEdit } from 'lucide-react';
+import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Upload, File, Trash2, Layers, HelpCircle, PenTool, FileEdit, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { FlashcardViewer } from '@/components/FlashcardViewer';
 import { QuizViewer } from '@/components/QuizViewer';
 import { NoteTaker } from '@/components/NoteTaker';
+import { MessageRenderer } from '@/components/MessageRenderer';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { useClass, useAssignments, useDocuments, createAssignment, updateAssignment, deleteDocument as deleteDocumentAction } from '@/hooks/use-classes';
@@ -32,6 +34,8 @@ export default function ClassDetail() {
   const { classData, isLoading: classLoading } = useClass(classId);
   const { assignments, mutate: mutateAssignments } = useAssignments(classId);
   const { documents, mutate: mutateDocuments } = useDocuments(classId);
+  const [savedNotes, setSavedNotes] = useState<any[]>([]);
+  const [selectedNote, setSelectedNote] = useState<any>(null);
 
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -52,6 +56,22 @@ export default function ClassDetail() {
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
   }, [authLoading, user]);
+
+  const fetchNotes = async () => {
+    if (!classId || !user) return;
+    const { data, error } = await supabase
+      .from('class_notes')
+      .select('*')
+      .eq('class_id', classId)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) setSavedNotes(data);
+  };
+
+  useEffect(() => {
+    fetchNotes();
+  }, [classId, user]);
 
   // --- Assignments ---
   const addAssignment = async () => {
@@ -238,6 +258,24 @@ export default function ClassDetail() {
                 </label>
               </div>
 
+              {savedNotes.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-slate-700 text-sm">Saved Notes</h3>
+                  {savedNotes.map((note: any) => (
+                    <Card key={note.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setSelectedNote(note)}>
+                      <div className="w-10 h-10 rounded flex items-center justify-center bg-blue-100 text-blue-600">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-slate-900">{note.title}</h4>
+                        <p className="text-xs text-slate-500 line-clamp-1">{note.summary}</p>
+                        <span className="text-xs text-slate-400">{new Date(note.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
               {documents?.map((doc: any) => (
                 <Card key={doc.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
                   <div className={`w-10 h-10 rounded flex items-center justify-center ${doc.file_type === 'text/markdown' ? 'bg-purple-100 text-purple-600' : 'bg-red-100 text-red-600'}`}>
@@ -306,10 +344,37 @@ export default function ClassDetail() {
 
       <NoteTaker
         open={showNoteTaker}
-        onOpenChange={setShowNoteTaker}
+        onOpenChange={(open) => {
+          setShowNoteTaker(open);
+          if (!open) fetchNotes();
+        }}
         classId={classId}
         userId={user?.id || ''}
       />
+
+      <Dialog open={!!selectedNote} onOpenChange={(open) => !open && setSelectedNote(null)}>
+        <DialogContent className="max-w-4xl h-[80vh]">
+          <DialogHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <DialogTitle className="text-2xl">{selectedNote?.title}</DialogTitle>
+                <p className="text-sm text-slate-500 mt-2">{selectedNote?.summary}</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {selectedNote?.created_at && new Date(selectedNote.created_at).toLocaleString()}
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setSelectedNote(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            <div className="prose prose-slate max-w-none">
+              {selectedNote?.formatted_notes && <MessageRenderer content={selectedNote.formatted_notes} />}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
         <DialogContent>
