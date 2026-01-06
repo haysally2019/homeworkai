@@ -43,10 +43,6 @@ export async function POST(request: NextRequest) {
       userCredits = newCredits;
     }
 
-    if (!userCredits) {
-      return NextResponse.json({ error: 'Failed to get user credits' }, { status: 500 });
-    }
-
     if (!userCredits.is_pro && userCredits.credits < 1) {
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
@@ -54,7 +50,7 @@ export async function POST(request: NextRequest) {
     // 2. Initialize Gemini 2.0
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
     
-    // *** UPGRADE TO GEMINI 2.0 ***
+    // *** CRITICAL: USING GEMINI 2.0 FLASH EXPERIMENTAL ***
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash-exp', 
       systemInstruction: SYSTEM_PROMPT,
