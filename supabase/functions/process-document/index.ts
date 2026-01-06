@@ -41,13 +41,12 @@ Deno.serve(async (req) => {
     if (doc.file_type === 'text/markdown' || doc.file_path.endsWith('.md')) {
       textContent = await fileData.text()
     } else {
-      // For PDFs, we'd ideally use a parser. For now, we'll assume text or use a placeholder
-      // to ensure the process finishes. In a real prod env, use 'pdf-parse'.
-      textContent = "Scanned PDF Content: " + doc.filename // Placeholder for MVP
+      // For PDFs, we assume text or placeholder for now
+      textContent = "Scanned PDF Content: " + doc.filename 
     }
 
     // 5. Generate Embeddings (Chunking)
-    const chunks = textContent.match(/[\s\S]{1,1000}/g) || [] // Simple 1000 char chunking
+    const chunks = textContent.match(/[\s\S]{1,1000}/g) || [] 
     
     for (const chunk of chunks) {
       const result = await model.embedContent(chunk)
