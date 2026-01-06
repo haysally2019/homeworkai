@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Clock, Upload, File, Trash2, Layers, HelpCircle, PenTool } from 'lucide-react';
+import { Plus, CheckCircle, Circle, Calendar, ArrowLeft, BookOpen, Sparkles, Loader2, FileText, Clock, Upload, File, Trash2, Layers, HelpCircle, PenTool, FileEdit } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -105,15 +105,10 @@ export default function ClassDetail() {
     }
   };
 
-  // -------------------------------------------------------------------------
-  // UPDATED FILE UPLOAD LOGIC
-  // -------------------------------------------------------------------------
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // VALIDATION ONLY APPLIES TO MANUAL UPLOADS
     if (file.type !== 'application/pdf') {
       toast.error('Only PDF files are supported for upload');
       return;
@@ -128,7 +123,6 @@ export default function ClassDetail() {
     e.target.value = ''; // Reset input
   };
 
-  // Shared function: removed validation to allow Markdown from Note Taker
   const processAndUploadFile = async (file: File) => {
     setUploadingFile(true);
     try {
@@ -136,11 +130,18 @@ export default function ClassDetail() {
       if (!session) throw new Error('Not authenticated');
 
       const classId = Array.isArray(id) ? id[0] : id;
-      const filePath = `${session.user.id}/${classId}/${Date.now()}_${file.name}`;
+      
+      // Sanitized filename to prevent upload errors
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `${session.user.id}/${classId}/${Date.now()}_${sanitizedName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('class-documents')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type // Ensure content type is passed explicitly
+        });
 
       if (uploadError) throw uploadError;
 
@@ -151,7 +152,7 @@ export default function ClassDetail() {
           user_id: session.user.id,
           filename: file.name,
           file_path: filePath,
-          file_type: file.type, // 'text/markdown' for notes, 'application/pdf' for uploads
+          file_type: file.type,
           file_size: file.size,
           processing_status: 'pending'
         }])
@@ -176,7 +177,7 @@ export default function ClassDetail() {
     } catch (error: any) {
       console.error('Error uploading file:', error);
       toast.error(error.message || 'Failed to save document');
-      throw error; // Rethrow to let caller know
+      throw error;
     } finally {
       setUploadingFile(false);
     }
@@ -209,21 +210,23 @@ export default function ClassDetail() {
 
     setProcessingNotes(true);
     try {
-      // 1. Send raw notes to AI for cleaning
-      // Use SOLVER mode to force action (formatting) rather than tutoring
+      // Improved Prompt for better cleanup and summary
       const res = await fetch('/api/solve', {
         method: 'POST',
         body: JSON.stringify({
-          text: `TASK: Reformat the following class notes into clean Markdown.
-          
-INSTRUCTIONS:
-- Fix typos and grammar.
-- Use # Headings, - Bullet points, and **Bold** for key terms.
-- Do NOT add conversational text like "Here are your notes". Just output the notes.
+          text: `You are an expert academic note-taker.
+TASK: Transform the user's raw notes into a beautiful, study-ready Markdown document.
+
+REQUIREMENTS:
+1. **Executive Summary**: Begin with a '## 📝 Summary' section summarizing the core concepts (approx 50 words).
+2. **Structure**: Organize content into logical sections with clear Headers (##, ###).
+3. **Key Terms**: Bold **definitions** and **important terms**.
+4. **Readability**: Convert messy lists into clean bullet points. Fix grammar/typos.
+5. **Formatting**: Use > blockquotes for crucial "Remember this" points. Do NOT include any conversational intro/outro.
 
 RAW NOTES:
 ${rawNotes}`,
-          mode: 'solver', 
+          mode: 'solver', // Solver mode ensures direct execution of the task
           userId: user?.id,
           classId: classId
         }),
@@ -232,20 +235,21 @@ ${rawNotes}`,
       const data = await res.json();
       if (!data.response) throw new Error("Failed to process notes");
 
-      // 2. Create a File object from the AI response
+      // Robust Filename Generation
+      const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
+      const filename = `Notes_${dateStr}_${timeStr}.md`;
+      
+      // Create file with explicit type
       const noteContent = `# Class Notes: ${new Date().toLocaleDateString()}\n\n${data.response}`;
       const blob = new Blob([noteContent], { type: 'text/markdown' });
-      // Create a friendly filename
-      const filename = `Notes_${new Date().toLocaleDateString().replace(/\//g, '-')}.md`;
-      
       const file = new File([blob], filename, { type: 'text/markdown' });
 
-      // 3. Upload using refactored logic
       await processAndUploadFile(file);
       
       setRawNotes('');
       setShowNoteTaker(false);
-      // Toast success is already handled in processAndUploadFile
+      // Toast success handled in processAndUploadFile
 
     } catch (error) {
       console.error(error);
@@ -404,17 +408,17 @@ Return ONLY a valid JSON array in this exact format (no markdown, no code blocks
               <div className="flex gap-2">
                 <Button 
                   onClick={() => setShowNoteTaker(true)} 
-                  variant="outline"
-                  className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm border border-indigo-500"
                 >
-                  <PenTool className="w-4 h-4 mr-2" /> Live Notes
+                  <PenTool className="w-4 h-4 mr-2" /> Open Note Taker
                 </Button>
 
                 <label htmlFor="file-upload">
                   <Button
+                    variant="outline"
                     onClick={() => document.getElementById('file-upload')?.click()}
                     disabled={uploadingFile}
-                    className="bg-emerald-600 hover:bg-emerald-700"
+                    className="border-slate-200 hover:bg-slate-50"
                   >
                     {uploadingFile ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <><Upload className="w-4 h-4 mr-2" /> Upload PDF</>}
                   </Button>
@@ -423,23 +427,28 @@ Return ONLY a valid JSON array in this exact format (no markdown, no code blocks
               </div>
             </div>
 
-            {documents.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-white rounded-xl border-2 border-slate-200 border-dashed">
-                <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
-                  <Upload className="w-8 h-8 text-emerald-300" />
-                </div>
-                <p className="text-lg font-medium text-slate-600 mb-2">No materials uploaded yet</p>
-                <p className="text-sm text-slate-500 mb-4 max-w-md text-center">
-                  Upload your syllabus, class notes, or study materials to get AI responses tailored to your professor's teaching style
-                </p>
-              </div>
-            )}
-
+            {/* Quick Action Card for Empty State or Top of List */}
             <div className="grid gap-3">
+              <Card 
+                className="p-4 bg-indigo-50 border-indigo-100 flex items-center justify-between cursor-pointer hover:shadow-md transition-all group"
+                onClick={() => setShowNoteTaker(true)}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                    <FileEdit className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-indigo-900">Start Taking Notes</h3>
+                    <p className="text-xs text-indigo-600">Use AI to capture, format, and summarize your lecture notes instantly.</p>
+                  </div>
+                </div>
+                <ArrowLeft className="w-5 h-5 text-indigo-400 rotate-180 group-hover:translate-x-1 transition-transform" />
+              </Card>
+
               {(documents as any[]).map((doc: any) => (
                 <Card key={doc.id} className="p-4 flex items-center gap-4 bg-white border-slate-200 hover:shadow-md transition-all">
-                  <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                    <File className="w-5 h-5 text-slate-600" />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${doc.file_type === 'text/markdown' ? 'bg-purple-100' : 'bg-slate-100'}`}>
+                    <File className={`w-5 h-5 ${doc.file_type === 'text/markdown' ? 'text-purple-600' : 'text-slate-600'}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-slate-800 truncate">{doc.filename}</h3>
@@ -448,6 +457,7 @@ Return ONLY a valid JSON array in this exact format (no markdown, no code blocks
                       <Badge variant="outline" className={doc.processing_status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50'}>
                         {doc.processing_status}
                       </Badge>
+                      {doc.file_type === 'text/markdown' && <Badge variant="secondary" className="text-[10px] h-5">AI Notes</Badge>}
                     </div>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => handleDeleteDocument(doc.id, doc.file_path)} className="text-red-600 hover:bg-red-50">
@@ -457,25 +467,15 @@ Return ONLY a valid JSON array in this exact format (no markdown, no code blocks
               ))}
             </div>
 
-            {documents.length > 0 && (
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
-                    <Sparkles className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-blue-900 mb-1">AI-Enhanced Learning</h4>
-                    <p className="text-sm text-blue-700">
-                      Your uploaded materials are being processed and will be used to provide context-aware responses when you ask questions or solve problems in this class.
-                    </p>
-                  </div>
-                </div>
+            {documents.length === 0 && (
+              <div className="text-center py-12 text-slate-400">
+                <p>No uploaded documents yet.</p>
               </div>
             )}
           </TabsContent>
 
+          {/* ... Exam Prep Content (No Changes) ... */}
           <TabsContent value="examprep" className="flex-1 flex flex-col md:flex-row gap-6 h-full min-h-[500px]">
-            {/* ... Same Exam Prep UI as before ... */}
             <Card className="w-full md:w-80 bg-white border-slate-200 p-4 flex flex-col h-full">
               <div className="mb-4">
                 <h3 className="font-semibold text-slate-800 flex items-center gap-2">
@@ -520,106 +520,4 @@ Return ONLY a valid JSON array in this exact format (no markdown, no code blocks
 
       {/* Note Taker Modal */}
       <Dialog open={showNoteTaker} onOpenChange={(open) => !processingNotes && setShowNoteTaker(open)}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col bg-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <PenTool className="w-5 h-5 text-blue-600" /> Live Note Taker
-            </DialogTitle>
-            <DialogDescription>
-              Take raw notes here. When you finish, AI will clean, format, and save them to your Class Materials.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex-1 py-4">
-            <Textarea 
-              value={rawNotes}
-              onChange={(e) => setRawNotes(e.target.value)}
-              placeholder="Start typing your notes here... don't worry about formatting!"
-              className="h-full resize-none text-base p-6 leading-relaxed font-mono bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
-            />
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowNoteTaker(false)} disabled={processingNotes}>
-              Cancel
-            </Button>
-            <Button onClick={handleFinishNotes} disabled={!rawNotes.trim() || processingNotes} className="bg-blue-600 hover:bg-blue-700 min-w-[140px]">
-              {processingNotes ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
-              ) : (
-                <><CheckCircle className="w-4 h-4 mr-2" /> Finish & Save</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Assignment Modal */}
-      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="bg-white sm:max-w-[425px]">
-          <DialogHeader><DialogTitle>New Assignment</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-               <label className="text-sm font-medium">Title</label>
-               <Input value={newAssign.title} onChange={e => setNewAssign({...newAssign, title: e.target.value})} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                 <label className="text-sm font-medium">Type</label>
-                 <Select onValueChange={(val) => setNewAssign({...newAssign, type: val})} defaultValue="Homework">
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Homework">Homework</SelectItem>
-                    <SelectItem value="Quiz">Quiz</SelectItem>
-                    <SelectItem value="Exam">Exam</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                 <label className="text-sm font-medium">Due Date</label>
-                 <Input type="date" value={newAssign.due_date} onChange={e => setNewAssign({...newAssign, due_date: e.target.value})} />
-              </div>
-            </div>
-            <Button onClick={addAssignment} disabled={isSubmitting} className="w-full bg-blue-600 mt-4">Save</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Assignment Detail Sheet */}
-      <Sheet open={!!selectedAssignment} onOpenChange={(open) => !open && setSelectedAssignment(null)}>
-        <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto bg-white">
-          <SheetHeader className="mb-6">
-            <SheetTitle>{selectedAssignment?.title}</SheetTitle>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="outline">{selectedAssignment?.type}</Badge>
-              {selectedAssignment?.due_date && <span className="text-sm text-slate-500">Due {new Date(selectedAssignment.due_date).toLocaleDateString()}</span>}
-            </div>
-          </SheetHeader>
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-3">
-                <Card className="p-4 cursor-pointer hover:border-blue-500" onClick={() => router.push(`/chat?mode=solver&assignmentId=${selectedAssignment.id}&context=${encodeURIComponent(selectedAssignment?.title)}`)}>
-                  <div className="font-medium text-sm text-blue-600 mb-1">Solver Mode</div>
-                  <div className="text-xs text-slate-500">Step-by-step help</div>
-                </Card>
-                <Card className="p-4 cursor-pointer hover:border-purple-500" onClick={() => router.push(`/chat?mode=tutor&assignmentId=${selectedAssignment.id}&context=${encodeURIComponent(selectedAssignment?.title)}`)}>
-                  <div className="font-medium text-sm text-purple-600 mb-1">Tutor Mode</div>
-                  <div className="text-xs text-slate-500">Concept breakdown</div>
-                </Card>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
-}
-
-function getDueDateColor(dateStr: string, completed: boolean) {
-  if (completed) return 'text-slate-400';
-  const today = new Date();
-  const due = new Date(dateStr);
-  const diffTime = due.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-  if (diffDays < 0) return 'text-red-500 font-medium';
-  if (diffDays <= 2) return 'text-orange-500 font-medium';
-  return 'text-slate-500';
-}
+        <DialogContent className="max-w-4xl h-[80vh]
