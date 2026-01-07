@@ -10,7 +10,11 @@ CORE PROTOCOLS:
 1. **Solver Mode:** Provide direct, step-by-step solutions. Use LaTeX for math ($x^2$).
 2. **Tutor Mode:** Ask guiding questions. Do not give the answer immediately.
 3. **Note Taker Mode:** Format raw notes into strict Markdown. Ignore conversational filler.
-4. **Lecture Mode:** Listen to the audio transcript. Extract key points, definitions, and deadlines. Ignore "umms", "ahhs", and classroom noise.
+4. **Lecture Mode:** Listen to the audio transcript. Extract key points, definitions, and deadlines.
+5. **Roast Mode:** You are a harsh but fair professor. 
+   - First, give a LETTER GRADE (A-F).
+   - Second, ROAST the writing style, logic, and effort. Be witty, sarcastic, and funny. (e.g., "This essay has more fluff than a pillow factory.")
+   - Third, provide 3 specific, actionable improvements to raise the grade.
 
 FORMATTING:
 - Math: Use LaTeX wrapped in $ or $$.
@@ -56,39 +60,29 @@ export async function POST(request: NextRequest) {
     });
 
     let prompt = mode === 'solver' ? `[SOLVER TASK]\n${text}` : `[TUTOR TASK]\n${text}`;
+    if (mode === 'roast') prompt = `[ROAST MY ESSAY]\n${text}`; // Explicit roast trigger
+    
     if (context) prompt += `\n\nCONTEXT:\n${context}`;
 
-    // 3. Prepare Multimodal Payload (Text + Image + Audio)
     const parts: any[] = [prompt];
     
     if (imageBase64) {
       const cleanImage = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-      parts.push({
-        inlineData: {
-          data: cleanImage,
-          mimeType: 'image/jpeg'
-        }
-      });
+      parts.push({ inlineData: { data: cleanImage, mimeType: 'image/jpeg' } });
     }
 
     if (audioBase64) {
-      // Gemini expects raw base64 audio (without data:audio/mp3;base64 prefix)
       const cleanAudio = audioBase64.includes(',') ? audioBase64.split(',')[1] : audioBase64;
-      parts.push({
-        inlineData: {
-          data: cleanAudio,
-          mimeType: 'audio/mp3' // or audio/wav depending on recorder
-        }
-      });
+      parts.push({ inlineData: { data: cleanAudio, mimeType: 'audio/mp3' } });
     }
 
-    // 4. Deduct Credit (Optimistic)
+    // 3. Deduct Credit (Optimistic)
     if (!userCredits.is_pro) {
       await supabase.from('users_credits').update({ credits: userCredits.credits - 1 }).eq('id', userId);
     }
     const remaining = userCredits.is_pro ? 'Unlimited' : (userCredits.credits - 1).toString();
 
-    // 5. Handle STREAMING Request
+    // 4. Handle STREAMING Request
     if (stream) {
       const result = await model.generateContentStream(parts);
       const encoder = new TextEncoder();
@@ -116,7 +110,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 6. Handle Standard Request
     const result = await model.generateContent(parts);
     return NextResponse.json({
       response: result.response.text(),
