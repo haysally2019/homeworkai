@@ -1,12 +1,13 @@
 'use client';
 
+// ... imports remain the same ...
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Send, Loader2, Sparkles, Bot, User } from 'lucide-react';
+import { Camera, Send, Loader2, Sparkles, Bot, User, Paperclip } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { toast } from 'sonner';
 
@@ -21,6 +22,7 @@ interface ClassChatInterfaceProps {
 }
 
 export function ClassChatInterface({ classId, className }: ClassChatInterfaceProps) {
+  // ... existing state and logic ... (keep all the logic the same as before)
   const { user, refreshCredits, loading: authLoading } = useAuth();
   const supabase = createClient();
   
@@ -35,16 +37,9 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load Conversation specific to this class
   useEffect(() => {
     if (!user || !classId) return;
-
     const loadConversation = async () => {
-      // Try to find an existing "general" chat for this class (not tied to a specific assignment)
-      // Note: We might need to update the schema to support class_id directly in conversations, 
-      // but for now we can filter by metadata or a naming convention if schema isn't ready.
-      // For MVP, we will treat this as a persistent "Class Chat" stored with a specific tag.
-      
       const { data: existingConv } = await (supabase as any)
         .from('conversations')
         .select('id')
@@ -69,7 +64,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
         }
       }
     };
-
     loadConversation();
   }, [user, classId, className]);
 
@@ -108,25 +102,15 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
 
     try {
       let currentConvId = conversationId;
-      
-      // Create conversation if it doesn't exist
       if (!currentConvId) {
         const { data: newConv, error } = await (supabase as any)
           .from('conversations')
-          .insert({ 
-            user_id: user.id, 
-            title: `Class Chat: ${className}`,
-            // In a real prod schema, we'd add a 'class_id' column to conversations table
-          })
-          .select()
-          .single();
-          
+          .insert({ user_id: user.id, title: `Class Chat: ${className}` }).select().single();
         if (error) throw error;
         currentConvId = newConv.id;
         setConversationId(newConv.id);
       }
 
-      // Handle Image Upload
       let imageUrl = null;
       if (imgToSend) {
         const filePath = `${user.id}/${currentConvId}/${Date.now()}.jpg`;
@@ -136,7 +120,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
         imageUrl = data.publicUrl;
       }
 
-      // Save User Message
       await (supabase as any).from('messages').insert({
         conversation_id: currentConvId,
         role: 'user',
@@ -144,25 +127,20 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
         image_url: imageUrl
       });
 
-      // API Call - PASSING CLASS ID for RAG
       const res = await fetch('/api/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: userMsg.content,
           imageBase64: imgToSend,
-          mode: 'tutor', // Class chat defaults to Tutor mode for deep learning
+          mode: 'tutor',
           userId: user.id,
-          classId: classId, // <--- CRITICAL: Triggers Knowledge Base lookup
+          classId: classId,
           context: `Subject: ${className}. Use the provided class notes and documents to answer.` 
         }),
       });
 
-      if (res.status === 402) {
-        setShowPaywall(true);
-        setLoading(false);
-        return;
-      }
+      if (res.status === 402) { setShowPaywall(true); setLoading(false); return; }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -176,7 +154,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
         });
         await refreshCredits();
       }
-
     } catch (err: any) {
       toast.error(`Error: ${err.message}`);
       setMessages(prev => [...prev, { role: 'assistant', content: "Connection error. Please try again." }]);
@@ -186,60 +163,55 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative rounded-xl overflow-hidden border border-slate-200 shadow-sm">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100">
-            <Bot className="w-3 h-3 mr-1" /> Class AI
-          </Badge>
-          <span className="text-sm font-medium text-slate-600">Knowledge Base Active</span>
+    <div className="flex flex-col h-full bg-white relative">
+      {/* Floating Info Badge - Cleaner Header */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+        <div className="bg-slate-900/5 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
+          <Sparkles className="w-3 h-3 text-blue-600" />
+          <span className="text-xs font-semibold text-slate-700">Knowledge Base Active</span>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-60">
-            <Sparkles className="w-12 h-12 text-blue-300 mb-3" />
-            <p className="text-slate-500 font-medium">Ask me anything about {className}</p>
-            <p className="text-xs text-slate-400 mt-1">I have access to your notes & documents</p>
+          <div className="h-full flex flex-col items-center justify-center text-center p-8">
+            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-sm">
+              <Bot className="w-8 h-8 text-blue-600" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900">Class AI Assistant</h3>
+            <p className="text-slate-500 max-w-xs mt-2">
+              I have access to all your notes and documents for {className}. Ask me anything!
+            </p>
           </div>
         )}
         
         {messages.map((m, i) => (
-          <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
             {m.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm mt-1">
                 <Bot className="w-4 h-4 text-blue-600" />
               </div>
             )}
-            <div className={`max-w-[85%] rounded-2xl p-3.5 shadow-sm ${
+            <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-4 shadow-sm text-sm md:text-base leading-relaxed ${
               m.role === 'user' 
-                ? 'bg-blue-600 text-white rounded-br-none' 
-                : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                ? 'bg-blue-600 text-white rounded-br-sm' 
+                : 'bg-white text-slate-800 border border-slate-100 rounded-bl-sm'
             }`}>
-              {m.image && <img src={m.image} alt="Upload" className="rounded-lg mb-2 max-h-48 object-cover bg-black/10" />}
+              {m.image && <img src={m.image} alt="Upload" className="rounded-lg mb-3 max-h-60 object-cover bg-black/5" />}
               <MessageRenderer content={m.content} role={m.role} />
             </div>
-            {m.role === 'user' && (
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                <User className="w-4 h-4 text-blue-700" />
-              </div>
-            )}
           </div>
         ))}
         {loading && (
-          <div className="flex gap-3">
-             <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0">
+          <div className="flex gap-4">
+             <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
                 <Bot className="w-4 h-4 text-blue-600" />
               </div>
-              <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-none p-4 shadow-sm">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                  <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                  <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></span>
-                </div>
+              <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-sm p-4 shadow-sm flex items-center gap-1">
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></span>
               </div>
           </div>
         )}
@@ -247,30 +219,32 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       </div>
 
       {/* Input */}
-      <div className="p-4 bg-white border-t border-slate-200">
-        <Suspense fallback={null}><MathToolbar onInsert={handleInsertLatex} /></Suspense>
-        <form onSubmit={handleSubmit} className="relative flex gap-2 mt-2">
-          {selectedImage && (
-            <div className="absolute bottom-full mb-2 left-0 bg-white p-2 rounded-xl shadow-lg border border-slate-200">
-              <img src={selectedImage} alt="Preview" className="h-16 rounded-lg" />
-              <button type="button" onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">✕</button>
-            </div>
-          )}
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageCapture} className="hidden" />
-          <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="text-slate-400 hover:text-blue-600">
-            <Camera className="w-5 h-5" />
-          </Button>
-          <Input 
-            ref={inputRef}
-            value={input} 
-            onChange={e => setInput(e.target.value)} 
-            placeholder={`Ask about ${className}...`} 
-            className="flex-1 bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
-          />
-          <Button type="submit" disabled={loading || (!input && !selectedImage)} className="bg-blue-600 hover:bg-blue-700 text-white shadow-md">
-            <Send className="w-4 h-4" />
-          </Button>
-        </form>
+      <div className="p-4 md:p-6 bg-white border-t border-slate-100">
+        <div className="max-w-4xl mx-auto">
+          <Suspense fallback={null}><MathToolbar onInsert={handleInsertLatex} /></Suspense>
+          <form onSubmit={handleSubmit} className="relative flex items-end gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-50 transition-all">
+            {selectedImage && (
+              <div className="absolute bottom-full mb-4 left-0 bg-white p-2 rounded-xl shadow-xl border border-slate-100">
+                <img src={selectedImage} alt="Preview" className="h-24 rounded-lg object-cover" />
+                <button type="button" onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-slate-900 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-500 transition-colors">×</button>
+              </div>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageCapture} className="hidden" />
+            <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl h-10 w-10">
+              <Paperclip className="w-5 h-5" />
+            </Button>
+            <Input 
+              ref={inputRef}
+              value={input} 
+              onChange={e => setInput(e.target.value)} 
+              placeholder="Ask a question about this class..." 
+              className="flex-1 bg-transparent border-0 focus-visible:ring-0 px-2 h-10 text-slate-800 placeholder:text-slate-400"
+            />
+            <Button type="submit" disabled={loading || (!input && !selectedImage)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 w-10 p-0 shadow-sm shrink-0">
+              <Send className="w-4 h-4" />
+            </Button>
+          </form>
+        </div>
       </div>
 
       {showPaywall && <Suspense fallback={null}><PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} /></Suspense>}
