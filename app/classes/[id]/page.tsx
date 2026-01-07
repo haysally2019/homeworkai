@@ -5,7 +5,16 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, BookOpen, GraduationCap, Loader2, MessageSquare, CalendarCheck } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  BookOpen, 
+  GraduationCap, 
+  Loader2, 
+  MessageSquare, 
+  CalendarCheck, 
+  FileText,      // Added
+  CheckCircle2   // Added
+} from 'lucide-react';
 import { MaterialsTab } from '@/components/class-tabs/MaterialsTab';
 import { AssignmentsTab } from '@/components/class-tabs/AssignmentsTab';
 import { ClassChatInterface } from '@/components/ClassChatInterface';
