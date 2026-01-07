@@ -1,12 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
   },
-  typescript: {
-    ignoreBuildErrors: false,
+  // Allow large payloads for the API route
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
   },
-  images: { unoptimized: true },
 };
 
 module.exports = nextConfig;
