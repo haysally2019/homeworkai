@@ -1,88 +1,60 @@
 'use client';
 
-import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Check, Sparkles, Zap, Loader2, GraduationCap, Crown } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
-import { toast } from 'sonner';
+import { Check, Zap, Crown, GraduationCap } from 'lucide-react';
 
 interface PaywallModalProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
 }
 
-export function PaywallModal({ open, onOpenChange }: PaywallModalProps) {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-
-  const handleUpgrade = async () => {
-    if (!user) return;
-    setLoading(true);
-
-    try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          email: user.email,
-          returnUrl: window.location.href, // Return to current page after payment
-        }),
-      });
-
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url; // Redirect to Stripe
-      } else {
-        throw new Error('No checkout URL returned');
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to start checkout. Please try again.');
-      setLoading(false);
-    }
+export function PaywallModal({ open, onClose }: PaywallModalProps) {
+  
+  const handleCheckout = (link: string) => {
+    window.location.href = link;
   };
 
   const plans = [
     {
       name: 'Monthly',
-      price: '$9.99',
+      price: '$9.99', // Updated to ~$10
       period: '/mo',
       icon: Zap,
-      features: ['Unlimited AI Solves', 'Gemini 2.0 Access', 'Step-by-step logic'],
-      popular: true,
-      action: handleUpgrade,
+      link: 'https://buy.stripe.com/monthly_placeholder',
+      features: ['Unlimited AI Solves', 'Tutor Mode Access', 'Step-by-step logic'],
+      popular: false,
     },
     {
       name: 'Semester Pass',
-      price: '$24.99', 
+      price: '$24.99', // Updated to ~$25
       period: '/one-time',
       icon: GraduationCap,
+      link: 'https://buy.stripe.com/semester_placeholder',
       features: ['Valid for 4 Months', 'Exam Prep Generator', 'Priority Support', 'One-time payment'],
-      popular: false,
-      action: () => toast.info("Coming soon!"), // Placeholder for future one-time product
+      popular: true,
+      color: 'blue',
     },
     {
       name: 'Annual',
       price: '$39.99',
       period: '/year',
       icon: Crown,
+      link: 'https://buy.stripe.com/annual_placeholder',
       features: ['Best Value (Save 65%)', 'All Pro features', 'Beta access to new tools'],
       popular: false,
-      action: () => toast.info("Coming soon!"),
     }
   ];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl bg-slate-50 border-slate-200">
         <DialogHeader className="text-center mb-6">
           <DialogTitle className="text-3xl font-bold text-slate-900">
             Unlock Unlimited Learning
           </DialogTitle>
           <DialogDescription className="text-slate-500 text-lg">
-            Get 100% accurate, unlimited homework help with our smartest AI.
+            Get 100% accurate, unlimited homework help.
           </DialogDescription>
         </DialogHeader>
 
@@ -98,7 +70,7 @@ export function PaywallModal({ open, onOpenChange }: PaywallModalProps) {
             >
               {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full">
-                  MOST POPULAR
+                  BEST VALUE
                 </div>
               )}
               
@@ -124,12 +96,11 @@ export function PaywallModal({ open, onOpenChange }: PaywallModalProps) {
               </ul>
 
               <Button 
-                onClick={plan.action}
-                disabled={loading}
+                onClick={() => handleCheckout(plan.link)}
                 variant={plan.popular ? 'default' : 'outline'}
                 className={`w-full ${plan.popular ? 'bg-blue-600 hover:bg-blue-700' : 'border-slate-200 text-slate-700'}`}
               >
-                {loading && plan.popular ? <Loader2 className="w-4 h-4 animate-spin"/> : `Choose ${plan.name}`}
+                Choose {plan.name}
               </Button>
             </div>
           ))}
