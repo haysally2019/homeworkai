@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Flame, BookOpen, Trophy, TrendingUp, MessageSquare, FileText, Calendar, Zap } from 'lucide-react';
+import { Flame, BookOpen, Trophy, TrendingUp, MessageSquare, FileText, Calendar, Zap, GraduationCap } from 'lucide-react';
 import Link from 'next/link';
 
 interface DashboardStats {
@@ -38,66 +38,54 @@ export default function DashboardPage() {
   const supabase = createClient();
 
   useEffect(() => {
-const fetchDashboardData = async () => {
-  if (!user) return;
+    const fetchDashboardData = async () => {
+      if (!user) return;
 
-  try {
-    // Run all count queries in parallel
-    const [
-      classesCount,
-      totalAssignmentsCount,
-      completedAssignmentsCount,
-      totalNotesCount,
-      conversationsCount,
-      recentNotesData 
-    ] = await Promise.all([
-      // 1. Count active classes
-      supabase.from('classes').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-      
-      // 2. Count total assignments
-      supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-      
-      // 3. Count completed assignments
-      supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('completed', true),
+      try {
+        // Run all count queries in parallel
+        const [
+          classesCount,
+          totalAssignmentsCount,
+          completedAssignmentsCount,
+          totalNotesCount,
+          conversationsCount,
+          recentNotesData 
+        ] = await Promise.all([
+          supabase.from('classes').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+          supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+          supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('completed', true),
+          supabase.from('notes').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+          supabase.from('conversations').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+          supabase.from('notes')
+            .select('id, created_at, title')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5)
+        ]);
 
-      // 4. Count total notes (for stats)
-      supabase.from('notes').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        setStats({
+          activeClasses: classesCount.count || 0,
+          totalAssignments: totalAssignmentsCount.count || 0,
+          completedAssignments: completedAssignmentsCount.count || 0,
+          recentNotes: totalNotesCount.count || 0,
+          totalConversations: conversationsCount.count || 0,
+        });
 
-      // 5. Count conversations
-      supabase.from('conversations').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        const activities: RecentActivity[] = recentNotesData.data?.map((note: any) => ({
+          id: note.id,
+          type: 'note' as const,
+          title: note.title || 'Created a new note',
+          timestamp: note.created_at,
+        })) || [];
 
-      // 6. Fetch ONLY the 5 most recent notes for the Activity Feed (not for counting)
-      supabase.from('notes')
-        .select('id, created_at, title') // Ensure 'title' is selected if it exists in your schema
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(5)
-    ]);
+        setRecentActivity(activities);
 
-    setStats({
-      activeClasses: classesCount.count || 0,
-      totalAssignments: totalAssignmentsCount.count || 0,
-      completedAssignments: completedAssignmentsCount.count || 0,
-      recentNotes: totalNotesCount.count || 0, // Using total count for the "Notes Created" stat
-      totalConversations: conversationsCount.count || 0,
-    });
-
-    // Map the recent notes data for the activity feed
-    const activities: RecentActivity[] = recentNotesData.data?.map((note: any) => ({
-      id: note.id,
-      type: 'note' as const,
-      title: note.title || 'Created a new note', // Fallback if title is missing
-      timestamp: note.created_at,
-    })) || [];
-
-    setRecentActivity(activities);
-
-  } catch (error) {
-    console.error('Error fetching dashboard data:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
     fetchDashboardData();
   }, [user]);
@@ -113,6 +101,10 @@ const fetchDashboardData = async () => {
     if (user?.user_metadata?.full_name) return user.user_metadata.full_name;
     if (user?.email) return user.email.split('@')[0];
     return 'Student';
+  };
+
+  const getSchoolName = () => {
+    return user?.user_metadata?.school || 'University';
   };
 
   const completionRate = stats.totalAssignments > 0
@@ -137,12 +129,14 @@ const fetchDashboardData = async () => {
         <h1 className="text-4xl font-bold text-slate-900">
           {getGreeting()}, {getUserName()}! 👋
         </h1>
-        <p className="text-lg text-slate-600">
-          Here's your learning progress today
-        </p>
+        <div className="flex items-center gap-2 text-slate-600">
+           <GraduationCap className="w-5 h-5" />
+           <span className="text-lg font-medium">{getSchoolName()}</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* ... (Existing Cards Code) ... */}
         <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200 hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-slate-700">Current Streak</CardTitle>
