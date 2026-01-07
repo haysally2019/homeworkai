@@ -57,7 +57,7 @@ export function LandingPage() {
           <div className="text-center max-w-4xl mx-auto space-y-6">
             <div className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50/50 px-4 py-1.5 text-sm font-medium text-blue-700 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-1000">
               <Sparkles className="mr-2 h-4 w-4 fill-blue-700/20" />
-              <span>Now powered by Google Gemini 2.0</span>
+              <span>Now powered by Google Gemini</span>
             </div>
             
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.1]">
