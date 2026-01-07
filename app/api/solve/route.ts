@@ -10,6 +10,7 @@ CORE PROTOCOLS:
 1. **Solver Mode:** Provide direct, step-by-step solutions. Use LaTeX for math ($x^2$).
 2. **Tutor Mode:** Ask guiding questions. Do not give the answer immediately.
 3. **Note Taker Mode:** Format raw notes into strict Markdown. Ignore conversational filler.
+4. **Lecture Mode:** Listen to the audio transcript. Extract key points, definitions, and deadlines. Ignore "umms", "ahhs", and classroom noise.
 
 FORMATTING:
 - Math: Use LaTeX wrapped in $ or $$.
@@ -17,7 +18,7 @@ FORMATTING:
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, imageBase64, mode, userId, context, stream } = await request.json();
+    const { text, imageBase64, audioBase64, mode, userId, context, stream } = await request.json();
 
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -57,25 +58,37 @@ export async function POST(request: NextRequest) {
     let prompt = mode === 'solver' ? `[SOLVER TASK]\n${text}` : `[TUTOR TASK]\n${text}`;
     if (context) prompt += `\n\nCONTEXT:\n${context}`;
 
-    // Prepare content parts (Text + Image if exists)
+    // 3. Prepare Multimodal Payload (Text + Image + Audio)
     const parts: any[] = [prompt];
+    
     if (imageBase64) {
-      const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+      const cleanImage = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
       parts.push({
         inlineData: {
-          data: cleanBase64,
-          mimeType: 'image/jpeg' // We assume JPEG or convert on client
+          data: cleanImage,
+          mimeType: 'image/jpeg'
         }
       });
     }
 
-    // 3. Deduct Credit (Optimistic)
+    if (audioBase64) {
+      // Gemini expects raw base64 audio (without data:audio/mp3;base64 prefix)
+      const cleanAudio = audioBase64.includes(',') ? audioBase64.split(',')[1] : audioBase64;
+      parts.push({
+        inlineData: {
+          data: cleanAudio,
+          mimeType: 'audio/mp3' // or audio/wav depending on recorder
+        }
+      });
+    }
+
+    // 4. Deduct Credit (Optimistic)
     if (!userCredits.is_pro) {
       await supabase.from('users_credits').update({ credits: userCredits.credits - 1 }).eq('id', userId);
     }
     const remaining = userCredits.is_pro ? 'Unlimited' : (userCredits.credits - 1).toString();
 
-    // 4. Handle STREAMING Request
+    // 5. Handle STREAMING Request
     if (stream) {
       const result = await model.generateContentStream(parts);
       const encoder = new TextEncoder();
@@ -103,7 +116,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 5. Handle STANDARD Request (Quizzes/JSON)
+    // 6. Handle Standard Request
     const result = await model.generateContent(parts);
     return NextResponse.json({
       response: result.response.text(),
