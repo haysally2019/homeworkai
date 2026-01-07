@@ -38,41 +38,66 @@ export default function DashboardPage() {
   const supabase = createClient();
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!user) return;
+const fetchDashboardData = async () => {
+  if (!user) return;
 
-      try {
-        const [classesRes, assignmentsRes, notesRes, conversationsRes] = await Promise.all([
-          (supabase as any).from('classes').select('id').eq('user_id', user.id),
-          (supabase as any).from('assignments').select('id, completed').eq('user_id', user.id),
-          (supabase as any).from('notes').select('id, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
-          (supabase as any).from('conversation_history').select('id').eq('user_id', user.id),
-        ]);
+  try {
+    // Run all count queries in parallel
+    const [
+      classesCount,
+      totalAssignmentsCount,
+      completedAssignmentsCount,
+      totalNotesCount,
+      conversationsCount,
+      recentNotesData 
+    ] = await Promise.all([
+      // 1. Count active classes
+      supabase.from('classes').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+      
+      // 2. Count total assignments
+      supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+      
+      // 3. Count completed assignments
+      supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('completed', true),
 
-        const completedCount = assignmentsRes.data?.filter((a: any) => a.completed).length || 0;
+      // 4. Count total notes (for stats)
+      supabase.from('notes').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
 
-        setStats({
-          activeClasses: classesRes.data?.length || 0,
-          totalAssignments: assignmentsRes.data?.length || 0,
-          completedAssignments: completedCount,
-          recentNotes: notesRes.data?.length || 0,
-          totalConversations: conversationsRes.data?.length || 0,
-        });
+      // 5. Count conversations
+      supabase.from('conversations').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
 
-        const activities: RecentActivity[] = notesRes.data?.slice(0, 5).map((note: any) => ({
-          id: note.id,
-          type: 'note' as const,
-          title: 'Created a new note',
-          timestamp: note.created_at,
-        })) || [];
+      // 6. Fetch ONLY the 5 most recent notes for the Activity Feed (not for counting)
+      supabase.from('notes')
+        .select('id, created_at, title') // Ensure 'title' is selected if it exists in your schema
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+    ]);
 
-        setRecentActivity(activities);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    setStats({
+      activeClasses: classesCount.count || 0,
+      totalAssignments: totalAssignmentsCount.count || 0,
+      completedAssignments: completedAssignmentsCount.count || 0,
+      recentNotes: totalNotesCount.count || 0, // Using total count for the "Notes Created" stat
+      totalConversations: conversationsCount.count || 0,
+    });
+
+    // Map the recent notes data for the activity feed
+    const activities: RecentActivity[] = recentNotesData.data?.map((note: any) => ({
+      id: note.id,
+      type: 'note' as const,
+      title: note.title || 'Created a new note', // Fallback if title is missing
+      timestamp: note.created_at,
+    })) || [];
+
+    setRecentActivity(activities);
+
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
     fetchDashboardData();
   }, [user]);
