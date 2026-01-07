@@ -5,13 +5,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, BookOpen, Plus, FileText, CheckCircle2, GraduationCap, Loader2, Wand2, MessageSquare } from 'lucide-react';
+import { ArrowLeft, BookOpen, GraduationCap, Loader2, MessageSquare, CalendarCheck } from 'lucide-react';
 import { MaterialsTab } from '@/components/class-tabs/MaterialsTab';
-import { ClassChatInterface } from '@/components/ClassChatInterface'; // Import the new component
+import { AssignmentsTab } from '@/components/class-tabs/AssignmentsTab';
+import { ClassChatInterface } from '@/components/ClassChatInterface';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { useAuth } from '@/lib/auth-context';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 
@@ -23,6 +25,7 @@ export default function ClassDetailsPage() {
   
   const [classData, setClassData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('chat');
   
   // Grading State
   const [essayText, setEssayText] = useState('');
@@ -87,113 +90,118 @@ export default function ClassDetailsPage() {
     }
   };
 
-  if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-blue-500" /></div>;
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
   if (!classData) return null;
 
   return (
-    <div className="h-full flex flex-col bg-slate-50">
+    <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-4 sticky top-0 z-10 shadow-sm">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/classes')}>
-          <ArrowLeft className="h-5 w-5 text-slate-500" />
-        </Button>
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: classData.color || '#3b82f6' }} />
-            {classData.name}
-          </h1>
-          <p className="text-sm text-slate-500">{classData.code} • {classData.semester}</p>
+      <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 shrink-0 z-10 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => router.push('/classes')} className="hover:bg-slate-100 rounded-full">
+            <ArrowLeft className="h-5 w-5 text-slate-500" />
+          </Button>
+          <div>
+            <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full ring-2 ring-white shadow-sm" style={{ backgroundColor: classData.color || '#3b82f6' }} />
+              {classData.name}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">{classData.code}</p>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-hidden p-6 max-w-7xl mx-auto w-full">
-        <Tabs defaultValue="chat" className="h-full flex flex-col">
-          <TabsList className="bg-white border border-slate-200 p-1 mb-6 w-fit shadow-sm rounded-xl">
-            <TabsTrigger value="chat" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 flex items-center gap-2 rounded-lg">
-                <MessageSquare className="w-4 h-4" /> Class Chat
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        <div className="px-4 md:px-6 py-2 bg-white border-b border-slate-200 shrink-0">
+          <TabsList className="bg-slate-100 p-1 w-full sm:w-auto grid grid-cols-4 sm:flex rounded-lg">
+            <TabsTrigger value="chat" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm">
+                <MessageSquare className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">AI Chat</span>
             </TabsTrigger>
-            <TabsTrigger value="materials" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 flex items-center gap-2 rounded-lg">
-                <BookOpen className="w-4 h-4" /> Materials
+            <TabsTrigger value="materials" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm">
+                <BookOpen className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Materials</span>
             </TabsTrigger>
-            <TabsTrigger value="grader" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 flex items-center gap-2 rounded-lg">
-                <GraduationCap className="w-4 h-4" /> Essay Grader
+            <TabsTrigger value="assignments" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm">
+                <CalendarCheck className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Assignments</span>
             </TabsTrigger>
-            <TabsTrigger value="assignments" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 flex items-center gap-2 rounded-lg">
-                <FileText className="w-4 h-4" /> Assignments
+            <TabsTrigger value="grader" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm">
+                <GraduationCap className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Grader</span>
             </TabsTrigger>
           </TabsList>
+        </div>
 
-          <TabsContent value="chat" className="flex-1 m-0 h-full">
+        <div className="flex-1 overflow-hidden relative bg-slate-50/50">
+          <TabsContent value="chat" className="h-full m-0 data-[state=active]:flex flex-col">
+             {/* No padding for chat to make it feel native */}
              <ClassChatInterface classId={classData.id} className={classData.name} />
           </TabsContent>
 
-          <TabsContent value="materials" className="flex-1 m-0 h-full overflow-y-auto">
-            <MaterialsTab classId={classData.id} />
+          <TabsContent value="materials" className="h-full m-0 p-4 md:p-6 overflow-y-auto">
+            <div className="max-w-6xl mx-auto">
+              <MaterialsTab classId={classData.id} userId={user?.id || ''} />
+            </div>
           </TabsContent>
 
-          <TabsContent value="grader" className="flex-1 m-0 h-full overflow-y-auto">
-             <div className="max-w-4xl mx-auto space-y-6">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-slate-900">AI Essay Grader</h2>
-                  <p className="text-slate-600">
-                    Paste your draft below. Altus will check your thesis, structure, and grammar, then assign a grade.
-                  </p>
+          <TabsContent value="assignments" className="h-full m-0 p-4 md:p-6 overflow-y-auto">
+            <div className="max-w-5xl mx-auto">
+              <AssignmentsTab classId={classData.id} userId={user?.id || ''} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="grader" className="h-full m-0 p-4 md:p-6 overflow-y-auto">
+             <div className="max-w-5xl mx-auto h-full flex flex-col">
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <GraduationCap className="w-6 h-6 text-blue-600" />
+                    Essay Grader
+                  </h2>
+                  <p className="text-slate-500">Get instant feedback on your writing before submitting.</p>
                 </div>
 
-                <div className="grid lg:grid-cols-2 gap-6 h-[600px]">
-                  <div className="flex flex-col gap-4 h-full">
+                <div className="grid lg:grid-cols-2 gap-6 flex-1 min-h-0">
+                  <div className="flex flex-col gap-4 h-full min-h-[400px]">
                     <Textarea 
                       placeholder="Paste your essay here..." 
-                      className="flex-1 resize-none p-4 text-base leading-relaxed bg-white border-slate-200 focus-visible:ring-blue-500"
+                      className="flex-1 resize-none p-4 text-base leading-relaxed bg-white border-slate-200 focus-visible:ring-blue-500 shadow-sm rounded-xl"
                       value={essayText}
                       onChange={(e) => setEssayText(e.target.value)}
                     />
                     <Button 
                       onClick={handleGradeEssay} 
                       disabled={isGrading || !essayText.trim()}
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg h-12"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md h-12 text-lg font-medium"
                     >
                       {isGrading ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Grading...</>
+                        <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Analyzing...</>
                       ) : (
-                        <><Wand2 className="mr-2 h-4 w-4" /> Grade My Essay</>
+                        'Grade My Essay'
                       )}
                     </Button>
                   </div>
 
-                  <div className="h-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="h-full min-h-[400px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
                     {gradingResult ? (
                       <div className="prose prose-sm max-w-none prose-headings:font-bold prose-h1:text-2xl prose-p:text-slate-600">
-                        <div className="flex items-center gap-2 mb-4 pb-4 border-b border-slate-100">
-                          <CheckCircle2 className="text-green-500 w-6 h-6" />
-                          <span className="font-bold text-lg text-slate-900">Grading Complete</span>
+                        <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
+                          <div className="w-8 h-8 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </div>
+                          <span className="font-bold text-lg text-slate-900">Feedback Report</span>
                         </div>
                         <MessageRenderer content={gradingResult} role="assistant" />
                       </div>
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
-                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
-                          <FileText className="w-8 h-8 opacity-50" />
-                        </div>
-                        <p>Your feedback will appear here</p>
+                      <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 opacity-50">
+                        <FileText className="w-16 h-16" />
+                        <p className="font-medium">Feedback will appear here</p>
                       </div>
                     )}
                   </div>
                 </div>
              </div>
           </TabsContent>
-
-          <TabsContent value="assignments" className="flex-1 m-0">
-            <div className="flex flex-col items-center justify-center h-64 text-slate-500 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-              <p>Assignments list coming soon...</p>
-              <Button variant="outline" className="mt-4" onClick={() => router.push('/dashboard')}>
-                <Plus className="mr-2 h-4 w-4" /> Create Assignment
-              </Button>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
 
       {showPaywall && (
         <Suspense fallback={null}>
