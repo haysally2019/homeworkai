@@ -39,41 +39,41 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4">
-      <Card className="w-full max-w-md bg-gray-900 border-gray-800">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
+      <Card className="w-full max-w-md bg-slate-900 border-slate-800 shadow-xl">
         <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">A</span>
+          <div className="flex items-center justify-center mb-6">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-900/20">
+              <span className="text-xl font-bold text-white">A</span>
             </div>
           </div>
-          <CardTitle className="text-2xl text-center text-white">Welcome to Altus</CardTitle>
-          <CardDescription className="text-center text-gray-400">
-            Sign in to your account to continue
+          <CardTitle className="text-2xl text-center text-white font-bold">Welcome Back</CardTitle>
+          <CardDescription className="text-center text-slate-400">
+            Sign in to continue your progress
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
-              <Alert variant="destructive" className="bg-red-950 border-red-900">
+              <Alert variant="destructive" className="bg-red-950/50 border-red-900 text-red-200">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-300">Email</Label>
+              <Label htmlFor="email" className="text-slate-300 text-xs uppercase tracking-wider font-semibold">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="your.email@university.edu"
+                placeholder="student@university.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
+                className="bg-slate-950/50 border-slate-800 text-white placeholder:text-slate-600 focus-visible:ring-blue-600"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-300">Password</Label>
+              <Label htmlFor="password" className="text-slate-300 text-xs uppercase tracking-wider font-semibold">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -81,12 +81,12 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
+                className="bg-slate-950/50 border-slate-800 text-white placeholder:text-slate-600 focus-visible:ring-blue-600"
               />
             </div>
             <Button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-6 shadow-lg shadow-blue-900/20"
               disabled={loading}
             >
               {loading ? (
@@ -99,9 +99,9 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm text-gray-400">
+          <div className="mt-6 text-center text-sm text-slate-400">
             Don't have an account?{' '}
-            <Link href="/signup" className="text-emerald-500 hover:text-emerald-400 font-medium">
+            <Link href="/signup" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
               Sign up
             </Link>
           </div>
