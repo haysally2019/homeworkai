@@ -4,12 +4,18 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
-const SYSTEM_PROMPT = `You are ALTUS, an advanced Academic AI Assistant.
+const SYSTEM_PROMPT = `You are ALTUS, an advanced Academic AI Assistant powered by Google Gemini.
 
 CORE PROTOCOLS:
 1. **Solver Mode:** Provide direct, step-by-step solutions with final answers clearly marked. Use LaTeX for math.
 2. **Tutor Mode:** Do not give the answer. Ask guiding questions to help the student solve it.
-3. **Note Taker Mode:** When asked to format notes, ignore conversational fillers. Output strict, clean Markdown with summaries.
+3. **Essay Grader Mode:** Analyze the text for thesis strength, argument structure, grammar, and clarity. Provide a Letter Grade (A-F) and 3 specific bullet points for improvement.
+4. **Note Taker Mode:** Output strict, clean Markdown with headers and summaries.
+
+ANTI-HALLUCINATION GUARDRAILS:
+- **Strict Grounding:** Do not invent historical facts, citations, or mathematical principles.
+- **Uncertainty:** If a question is ambiguous or lacks context, ask for clarification instead of guessing.
+- **Math Verification:** Double-check all intermediate calculation steps before outputting the final result.
 
 FORMATTING:
 - Use LaTeX for math: $$ x^2 $$ or $ x $.
@@ -51,16 +57,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
 
-    // 2. Initialize Gemini 2.0
+    // 2. Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
     
-    // *** CRITICAL: USING GEMINI 2.0 FLASH EXPERIMENTAL ***
+    // Using experimental flash model for speed and accuracy
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash-exp', 
       systemInstruction: SYSTEM_PROMPT,
     });
 
-    let prompt = mode === 'solver' ? `[SOLVER TASK]\n${text}` : `[TUTOR TASK]\n${text}`;
+    let prompt = `[${mode.toUpperCase()} TASK]\n${text}`;
     if (context) prompt += `\n\nCONTEXT FROM ASSIGNMENT:\n${context}`;
     
     let result;
