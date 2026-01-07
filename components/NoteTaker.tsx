@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, PenTool, CheckCircle } from 'lucide-react';
+import { Loader2, PenTool, CheckCircle, Play } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface NoteTakerProps {
@@ -17,15 +17,25 @@ interface NoteTakerProps {
 
 export function NoteTaker({ open, onOpenChange, userId, classId, onSave }: NoteTakerProps) {
   const [rawNotes, setRawNotes] = useState('');
-  const [processing, setProcessing] = useState(false);
+  const [generatedNotes, setGeneratedNotes] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [step, setStep] = useState<'input' | 'preview'>('input');
+  
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleFinish = async () => {
-    if (!rawNotes.trim()) return onOpenChange(false);
-    setProcessing(true);
+  const handleFormat = async () => {
+    if (!rawNotes.trim()) return;
+    
+    setIsProcessing(true);
+    setStep('preview');
+    setGeneratedNotes(''); // Clear previous
+    
+    abortControllerRef.current = new AbortController();
 
     try {
       const res = await fetch('/api/solve', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: `You are an expert academic note-taker.
 TASK: Format these raw notes into a clean Markdown study guide.
@@ -43,63 +53,102 @@ STRUCTURE:
 
 RAW NOTES:
 ${rawNotes}`,
-          mode: 'solver', // Solver ensures it follows instructions exactly
-          userId: userId,
-          classId: classId
+          mode: 'solver',
+          userId,
+          classId,
+          stream: true // Stream enabled
         }),
+        signal: abortControllerRef.current.signal
       });
 
-      const data = await res.json();
-      if (!data.response) throw new Error("AI processing failed");
+      if (!res.ok) throw new Error("Processing failed");
 
-      // 1. Generate Safe Filename
-      const dateStr = new Date().toISOString().split('T')[0];
-      const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
-      const filename = `Notes_${dateStr}_${timeStr}.md`;
-      
-      // 2. Create File with Correct MIME Type
-      const blob = new Blob([data.response], { type: 'text/markdown' });
-      const file = new File([blob], filename, { type: 'text/markdown' });
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
 
-      // 3. Save
-      await onSave(file);
-      
-      setRawNotes('');
-      onOpenChange(false);
-      toast.success("Notes saved and formatted!");
+      if (!reader) return;
 
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to process notes");
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        setGeneratedNotes(prev => prev + chunk);
+      }
+
+    } catch (e: any) {
+      if (e.name !== 'AbortError') toast.error("Failed to process notes");
     } finally {
-      setProcessing(false);
+      setIsProcessing(false);
     }
   };
 
+  const handleSaveFinal = async () => {
+    const dateStr = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
+    const filename = `Notes_${dateStr}_${timeStr}.md`;
+    
+    const blob = new Blob([generatedNotes], { type: 'text/markdown' });
+    const file = new File([blob], filename, { type: 'text/markdown' });
+
+    await onSave(file);
+    
+    setRawNotes('');
+    setGeneratedNotes('');
+    setStep('input');
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !processing && onOpenChange(o)}>
-      <DialogContent className="max-w-3xl h-[80vh] flex flex-col bg-white">
+    <Dialog open={open} onOpenChange={(o) => {
+      if (!isProcessing) {
+        onOpenChange(o);
+        if (!o) {
+          setStep('input'); // Reset on close
+          setGeneratedNotes('');
+        }
+      }
+    }}>
+      <DialogContent className="max-w-4xl h-[85vh] flex flex-col bg-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <PenTool className="w-5 h-5 text-indigo-600" /> Live Note Taker
+            <PenTool className="w-5 h-5 text-indigo-600" /> 
+            {step === 'input' ? 'Live Note Taker' : 'AI Formatting Preview'}
           </DialogTitle>
           <DialogDescription>
-            Jot down raw notes here. AI will organize, summarize, and format them for you.
+            {step === 'input' ? 'Jot down raw notes. AI will clean them up.' : 'Review your notes before saving.'}
           </DialogDescription>
         </DialogHeader>
         
-        <Textarea 
-          value={rawNotes} 
-          onChange={e => setRawNotes(e.target.value)} 
-          placeholder="Type your notes here... (e.g. Prof said: Photosynthesis has 2 stages...)" 
-          className="flex-1 resize-none p-6 font-mono text-base bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
-        />
+        {step === 'input' ? (
+          <Textarea 
+            value={rawNotes} 
+            onChange={e => setRawNotes(e.target.value)} 
+            placeholder="Type raw notes here... don't worry about formatting!" 
+            className="flex-1 resize-none p-6 font-mono text-base bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+          />
+        ) : (
+          <div className="flex-1 bg-slate-50 border rounded-md p-6 overflow-y-auto whitespace-pre-wrap font-mono text-sm">
+            {generatedNotes || <span className="text-slate-400 animate-pulse">Thinking...</span>}
+          </div>
+        )}
         
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={processing}>Cancel</Button>
-          <Button onClick={handleFinish} disabled={!rawNotes.trim() || processing} className="bg-indigo-600 hover:bg-indigo-700 min-w-[140px]">
-            {processing ? <><Loader2 className="animate-spin mr-2 w-4 h-4"/> Formatting...</> : <><CheckCircle className="w-4 h-4 mr-2"/> Finish & Save</>}
-          </Button>
+        <DialogFooter className="gap-2">
+          {step === 'input' ? (
+            <>
+              <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button onClick={handleFormat} disabled={!rawNotes.trim()} className="bg-indigo-600 hover:bg-indigo-700">
+                <Play className="w-4 h-4 mr-2" /> Process Notes
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => setStep('input')} disabled={isProcessing}>Back to Edit</Button>
+              <Button onClick={handleSaveFinal} disabled={isProcessing || !generatedNotes} className="bg-emerald-600 hover:bg-emerald-700">
+                {isProcessing ? <Loader2 className="animate-spin w-4 h-4 mr-2"/> : <CheckCircle className="w-4 h-4 mr-2"/>}
+                Save to Class
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
