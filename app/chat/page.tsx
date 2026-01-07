@@ -5,9 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, ArrowLeft, Loader2, Sparkles, StopCircle } from 'lucide-react';
+import { Loader2, Sparkles, StopCircle, ArrowLeft, Send, Image as ImageIcon, X } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { toast } from 'sonner';
 
@@ -15,6 +13,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  image?: string; // Preview image
 }
 
 export default function ChatPage() {
@@ -29,23 +28,46 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [credits, setCredits] = useState<string | number>('-');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll to bottom
+  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isStreaming) return;
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) return toast.error("Image too large (Max 5MB)");
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: input };
+  const handleSend = async () => {
+    if ((!input.trim() && !selectedImage) || isStreaming) return;
+
+    const userMsg: Message = { 
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: input,
+      image: selectedImage || undefined
+    };
+    
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    const tempImage = selectedImage; // Keep ref for API
+    setSelectedImage(null); // Clear UI
     setIsStreaming(true);
 
     const aiMsgId = (Date.now() + 1).toString();
@@ -58,18 +80,19 @@ export default function ChatPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: userMsg.content,
+          text: userMsg.content || (tempImage ? "Analyze this image" : ""),
+          imageBase64: tempImage, // Send base64 to API
           mode: mode,
           userId: user?.id,
           context: contextTitle,
-          stream: true // Enable streaming
+          stream: true
         }),
         signal: abortControllerRef.current.signal
       });
 
       if (!res.ok) throw new Error(res.statusText);
 
-      // Update Credits from Header
+      // Update Credits
       const remaining = res.headers.get('X-Remaining-Credits');
       if (remaining) setCredits(remaining);
 
@@ -136,7 +159,7 @@ export default function ChatPage() {
               <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
                 <Sparkles className="w-6 h-6 text-indigo-400" />
               </div>
-              <p>Ask anything. I'm ready to help.</p>
+              <p>Ask a question or upload an image.</p>
             </div>
           )}
           
@@ -147,6 +170,9 @@ export default function ChatPage() {
                   ? 'bg-indigo-600 text-white' 
                   : 'bg-white border border-slate-200 text-slate-800 shadow-sm'
               }`}>
+                {msg.image && (
+                  <img src={msg.image} alt="Upload" className="max-w-full rounded-lg mb-2 max-h-[200px] object-cover" />
+                )}
                 {msg.role === 'user' ? (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 ) : (
@@ -156,36 +182,54 @@ export default function ChatPage() {
             </div>
           ))}
           
-          {/* Invisible padding for auto-scroll */}
           <div className="h-4" />
         </div>
       </div>
 
       {/* Input Area */}
       <div className="p-4 bg-white border-t">
+        {/* Image Preview */}
+        {selectedImage && (
+          <div className="mb-2 relative w-fit">
+            <img src={selectedImage} alt="Preview" className="h-20 w-20 object-cover rounded-lg border border-slate-200" />
+            <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-slate-900 text-white rounded-full p-1 hover:bg-red-600 transition-colors">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
         <div className="max-w-3xl mx-auto relative flex gap-2">
+          <input 
+            type="file" 
+            accept="image/*" 
+            className="hidden" 
+            ref={fileInputRef} 
+            onChange={handleImageSelect}
+          />
+          
+          <Button variant="outline" size="icon" className="h-12 w-12 shrink-0" onClick={() => fileInputRef.current?.click()}>
+            <ImageIcon className="w-5 h-5 text-slate-500" />
+          </Button>
+
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder={mode === 'solver' ? "Paste a problem or ask a question..." : "What concept are you stuck on?"}
-            className="pr-12 py-6 text-base shadow-sm"
+            placeholder={mode === 'solver' ? "Snap a math problem..." : "Upload notes to analyze..."}
+            className="flex-1 py-6 text-base shadow-sm"
             disabled={isStreaming}
           />
           
           {isStreaming ? (
-            <Button onClick={stopGeneration} size="icon" variant="destructive" className="absolute right-2 top-2 h-8 w-8">
-              <StopCircle className="w-4 h-4" />
+            <Button onClick={stopGeneration} size="icon" variant="destructive" className="h-12 w-12 shrink-0">
+              <StopCircle className="w-5 h-5" />
             </Button>
           ) : (
-            <Button onClick={handleSend} size="icon" className="absolute right-2 top-2 h-8 w-8 bg-indigo-600 hover:bg-indigo-700">
-              <Send className="w-4 h-4" />
+            <Button onClick={handleSend} size="icon" className="h-12 w-12 shrink-0 bg-indigo-600 hover:bg-indigo-700">
+              <Send className="w-5 h-5" />
             </Button>
           )}
         </div>
-        <p className="text-center text-[10px] text-slate-400 mt-2">
-          AI can make mistakes. Check important info.
-        </p>
       </div>
     </div>
   );
