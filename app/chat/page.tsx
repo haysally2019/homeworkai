@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,11 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  image?: string; // Preview image
+  image?: string;
 }
 
-export default function ChatPage() {
+// 1. Extract the Logic into a Sub-Component
+function ChatContent() {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -34,7 +35,6 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -45,11 +45,8 @@ export default function ChatPage() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) return toast.error("Image too large (Max 5MB)");
-      
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
+      reader.onloadend = () => setSelectedImage(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -66,8 +63,8 @@ export default function ChatPage() {
     
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    const tempImage = selectedImage; // Keep ref for API
-    setSelectedImage(null); // Clear UI
+    const tempImage = selectedImage;
+    setSelectedImage(null);
     setIsStreaming(true);
 
     const aiMsgId = (Date.now() + 1).toString();
@@ -81,7 +78,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: userMsg.content || (tempImage ? "Analyze this image" : ""),
-          imageBase64: tempImage, // Send base64 to API
+          imageBase64: tempImage,
           mode: mode,
           userId: user?.id,
           context: contextTitle,
@@ -92,11 +89,9 @@ export default function ChatPage() {
 
       if (!res.ok) throw new Error(res.statusText);
 
-      // Update Credits
       const remaining = res.headers.get('X-Remaining-Credits');
       if (remaining) setCredits(remaining);
 
-      // Read Stream
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
 
@@ -105,7 +100,6 @@ export default function ChatPage() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
         const chunk = decoder.decode(value, { stream: true });
         setMessages(prev => prev.map(m => 
           m.id === aiMsgId ? { ...m, content: m.content + chunk } : m
@@ -133,7 +127,6 @@ export default function ChatPage() {
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
-      {/* Header */}
       <div className="bg-white border-b p-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -151,7 +144,6 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Chat Area */}
       <div className="flex-1 overflow-hidden relative">
         <div ref={scrollRef} className="h-full overflow-y-auto p-4 space-y-6">
           {messages.length === 0 && (
@@ -181,14 +173,11 @@ export default function ChatPage() {
               </div>
             </div>
           ))}
-          
           <div className="h-4" />
         </div>
       </div>
 
-      {/* Input Area */}
       <div className="p-4 bg-white border-t">
-        {/* Image Preview */}
         {selectedImage && (
           <div className="mb-2 relative w-fit">
             <img src={selectedImage} alt="Preview" className="h-20 w-20 object-cover rounded-lg border border-slate-200" />
@@ -199,38 +188,34 @@ export default function ChatPage() {
         )}
 
         <div className="max-w-3xl mx-auto relative flex gap-2">
-          <input 
-            type="file" 
-            accept="image/*" 
-            className="hidden" 
-            ref={fileInputRef} 
-            onChange={handleImageSelect}
-          />
-          
+          <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageSelect} />
           <Button variant="outline" size="icon" className="h-12 w-12 shrink-0" onClick={() => fileInputRef.current?.click()}>
             <ImageIcon className="w-5 h-5 text-slate-500" />
           </Button>
-
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder={mode === 'solver' ? "Snap a math problem..." : "Upload notes to analyze..."}
+            placeholder={mode === 'solver' ? "Snap a problem or ask..." : "Type here..."}
             className="flex-1 py-6 text-base shadow-sm"
             disabled={isStreaming}
           />
-          
           {isStreaming ? (
-            <Button onClick={stopGeneration} size="icon" variant="destructive" className="h-12 w-12 shrink-0">
-              <StopCircle className="w-5 h-5" />
-            </Button>
+            <Button onClick={stopGeneration} size="icon" variant="destructive" className="h-12 w-12 shrink-0"><StopCircle className="w-5 h-5" /></Button>
           ) : (
-            <Button onClick={handleSend} size="icon" className="h-12 w-12 shrink-0 bg-indigo-600 hover:bg-indigo-700">
-              <Send className="w-5 h-5" />
-            </Button>
+            <Button onClick={handleSend} size="icon" className="h-12 w-12 shrink-0 bg-indigo-600 hover:bg-indigo-700"><Send className="w-5 h-5" /></Button>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+// 2. Wrap the Page Export in Suspense
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" /></div>}>
+      <ChatContent />
+    </Suspense>
   );
 }
