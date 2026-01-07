@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Flame, BookOpen, Trophy, TrendingUp, MessageSquare, FileText, Calendar, Zap, GraduationCap } from 'lucide-react';
+import { Flame, BookOpen, Trophy, TrendingUp, MessageSquare, FileText, Calendar, Zap, GraduationCap, ArrowRight, Brain, Sparkles, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 interface DashboardStats {
   activeClasses: number;
@@ -42,7 +43,6 @@ export default function DashboardPage() {
       if (!user) return;
 
       try {
-        // Run all count queries in parallel
         const [
           classesCount,
           totalAssignmentsCount,
@@ -97,15 +97,9 @@ export default function DashboardPage() {
     return 'Good evening';
   };
 
-  const getUserName = () => {
-    if (user?.user_metadata?.full_name) return user.user_metadata.full_name;
-    if (user?.email) return user.email.split('@')[0];
-    return 'Student';
-  };
-
-  const getSchoolName = () => {
-    return user?.user_metadata?.school || 'University';
-  };
+  const getUserName = () => user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Student';
+  const getSchoolName = () => user?.user_metadata?.school || 'University';
+  const getCurrentDate = () => new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   const completionRate = stats.totalAssignments > 0
     ? Math.round((stats.completedAssignments / stats.totalAssignments) * 100)
@@ -113,225 +107,264 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="flex gap-1.5">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="flex gap-2">
+          <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+          <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+          <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold text-slate-900">
-          {getGreeting()}, {getUserName()}! 👋
-        </h1>
-        <div className="flex items-center gap-2 text-slate-600">
-           <GraduationCap className="w-5 h-5" />
-           <span className="text-lg font-medium">{getSchoolName()}</span>
+    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 min-h-screen bg-slate-50">
+      
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">{getCurrentDate()}</p>
+          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">
+            {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">{getUserName()}</span>
+          </h1>
+          <div className="flex items-center gap-2 text-slate-600 mt-1">
+             <GraduationCap className="w-5 h-5 text-blue-500" />
+             <span className="font-medium">{getSchoolName()}</span>
+          </div>
+        </div>
+        {!isPro && (
+          <Button className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-lg shadow-orange-200 hover:shadow-xl hover:scale-105 transition-all rounded-full px-6">
+            <Zap className="w-4 h-4 mr-2 fill-white" /> Upgrade to Pro
+          </Button>
+        )}
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <StatCard 
+          title="Daily Streak" 
+          value={`${currentStreak} days`}
+          subtext={currentStreak === longestStreak && currentStreak > 0 ? "🔥 Personal best!" : `Best: ${longestStreak} days`}
+          icon={<Flame className="h-5 w-5 text-orange-600" />}
+          gradient="from-orange-50 to-red-50"
+          borderColor="border-orange-100"
+        />
+        <StatCard 
+          title="Credits Available" 
+          value={credits.toString()}
+          subtext={isPro ? "Unlimited Access" : "Resets daily at midnight"}
+          icon={<Zap className="h-5 w-5 text-blue-600" />}
+          gradient="from-blue-50 to-indigo-50"
+          borderColor="border-blue-100"
+        />
+        <StatCard 
+          title="Active Classes" 
+          value={stats.activeClasses.toString()}
+          subtext="Current semester"
+          icon={<BookOpen className="h-5 w-5 text-emerald-600" />}
+          gradient="from-emerald-50 to-teal-50"
+          borderColor="border-emerald-100"
+        />
+        <StatCard 
+          title="Completion Rate" 
+          value={`${completionRate}%`}
+          subtext={`${stats.completedAssignments} / ${stats.totalAssignments} tasks done`}
+          icon={<Trophy className="h-5 w-5 text-purple-600" />}
+          gradient="from-purple-50 to-pink-50"
+          borderColor="border-purple-100"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        {/* Left Column: Progress & Activity */}
+        <div className="xl:col-span-2 space-y-8">
+          {/* Progress Section */}
+          <Card className="border-slate-200 shadow-sm overflow-hidden">
+            <CardHeader className="border-b border-slate-100 bg-white/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <TrendingUp className="h-5 w-5 text-blue-600" />
+                    Learning Velocity
+                  </CardTitle>
+                  <CardDescription>Your weekly task completion momentum</CardDescription>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-slate-900">{completionRate}%</div>
+                  <div className="text-xs text-slate-500">Overall Progress</div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-1000 ease-out"
+                      style={{ width: `${completionRate}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-center text-slate-500">Keep completing assignments to boost your rating!</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center text-center">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-2">
+                      <MessageSquare className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div className="text-2xl font-bold text-slate-900">{stats.totalConversations}</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">AI Sessions</div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center text-center">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
+                      <FileText className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div className="text-2xl font-bold text-slate-900">{stats.recentNotes}</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Study Notes</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Activity Feed */}
+          <Card className="border-slate-200 shadow-sm h-full">
+            <CardHeader className="border-b border-slate-100 bg-white/50">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Calendar className="h-5 w-5 text-blue-600" />
+                Recent Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {recentActivity.length > 0 ? (
+                <div className="divide-y divide-slate-100">
+                  {recentActivity.map((activity) => (
+                    <div key={activity.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                        <FileText className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{activity.title}</p>
+                        <p className="text-xs text-slate-500">
+                          {new Date(activity.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="icon" className="text-slate-300 hover:text-blue-600">
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-slate-500">
+                  <p>No recent activity. Time to start studying!</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column: Quick Actions */}
+        <div className="space-y-6">
+          <Card className="border-slate-200 shadow-sm h-full flex flex-col">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Zap className="h-5 w-5 text-amber-500" />
+                Quick Actions
+              </CardTitle>
+              <CardDescription>Jump straight into learning</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-3 p-4 pt-0">
+              <Link href="/chat?mode=solver" className="col-span-2">
+                <ActionCard 
+                  icon={<Brain className="w-6 h-6 text-white" />}
+                  title="AI Solver"
+                  desc="Get instant step-by-step help"
+                  color="bg-gradient-to-br from-blue-500 to-indigo-600"
+                  textColor="text-white"
+                />
+              </Link>
+              <Link href="/chat?mode=tutor">
+                <ActionCard 
+                  icon={<Sparkles className="w-5 h-5 text-purple-600" />}
+                  title="AI Tutor"
+                  desc="Concept guide"
+                  color="bg-purple-50 border-purple-100"
+                  textColor="text-purple-900"
+                  hoverColor="group-hover:bg-purple-100"
+                />
+              </Link>
+              <Link href="/classes">
+                <ActionCard 
+                  icon={<BookOpen className="w-5 h-5 text-emerald-600" />}
+                  title="Classes"
+                  desc="Manage tasks"
+                  color="bg-emerald-50 border-emerald-100"
+                  textColor="text-emerald-900"
+                  hoverColor="group-hover:bg-emerald-100"
+                />
+              </Link>
+              <Link href="/chat" className="col-span-2">
+                 <Button variant="outline" className="w-full justify-start h-12 text-slate-600 border-dashed border-2 hover:border-slate-400 hover:text-slate-900 hover:bg-slate-50">
+                    <Plus className="w-4 h-4 mr-2" /> Create New Note
+                 </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Motivational Banner */}
+          {currentStreak > 2 && (
+             <div className="rounded-2xl bg-gradient-to-br from-orange-500 to-pink-500 p-6 text-white shadow-lg relative overflow-hidden group hover:scale-[1.02] transition-transform">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-8 -mt-8 blur-2xl group-hover:bg-white/20 transition-all" />
+               <div className="relative z-10">
+                 <div className="flex items-center gap-2 mb-2">
+                   <Flame className="w-6 h-6 animate-pulse" />
+                   <span className="font-bold text-lg">On Fire!</span>
+                 </div>
+                 <p className="text-orange-50 font-medium leading-relaxed">
+                   You've maintained a {currentStreak}-day streak. Keep it up for 3 more days to earn a bonus!
+                 </p>
+               </div>
+             </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* ... (Existing Cards Code) ... */}
-        <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200 hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-slate-700">Current Streak</CardTitle>
-            <Flame className="h-5 w-5 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-orange-600">{currentStreak} days</div>
-            <p className="text-xs text-slate-600 mt-2">
-              {currentStreak === longestStreak && currentStreak > 0
-                ? "🏆 Personal best!"
-                : `Best: ${longestStreak} days`}
-            </p>
-          </CardContent>
-        </Card>
+function StatCard({ title, value, subtext, icon, gradient, borderColor }: any) {
+  return (
+    <Card className={cn(
+      "border transition-all duration-200 hover:shadow-md hover:scale-[1.02]",
+      `bg-gradient-to-br ${gradient} ${borderColor}`
+    )}>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-sm font-semibold text-slate-600 tracking-wide uppercase">{title}</span>
+          <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-100/50">
+            {icon}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <div className="text-3xl font-bold text-slate-900 tracking-tight">{value}</div>
+          <p className="text-xs font-medium text-slate-500">{subtext}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
-        <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200 hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-slate-700">Credits Available</CardTitle>
-            <Zap className="h-5 w-5 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-600">{credits}</div>
-            <p className="text-xs text-slate-600 mt-2">
-              {isPro ? "Pro member" : "Resets daily"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-slate-700">Active Classes</CardTitle>
-            <BookOpen className="h-5 w-5 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600">{stats.activeClasses}</div>
-            <p className="text-xs text-slate-600 mt-2">
-              {stats.activeClasses === 0 ? "Add your first class!" : "Keep learning!"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-violet-50 to-purple-50 border-violet-200 hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-slate-700">Completion Rate</CardTitle>
-            <Trophy className="h-5 w-5 text-violet-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-violet-600">{completionRate}%</div>
-            <p className="text-xs text-slate-600 mt-2">
-              {stats.completedAssignments} of {stats.totalAssignments} done
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-              Your Progress
-            </CardTitle>
-            <CardDescription>Keep up the great work!</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-700">Assignment Completion</span>
-                <span className="text-slate-600">{completionRate}%</span>
-              </div>
-              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
-                  style={{ width: `${completionRate}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <div className="space-y-1">
-                <div className="text-2xl font-bold text-slate-900">{stats.totalConversations}</div>
-                <div className="text-sm text-slate-600 flex items-center gap-1">
-                  <MessageSquare className="h-4 w-4" />
-                  AI Conversations
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-2xl font-bold text-slate-900">{stats.recentNotes}</div>
-                <div className="text-sm text-slate-600 flex items-center gap-1">
-                  <FileText className="h-4 w-4" />
-                  Notes Created
-                </div>
-              </div>
-            </div>
-
-            {currentStreak >= 7 && (
-              <div className="bg-gradient-to-r from-orange-100 to-red-100 border border-orange-200 rounded-lg p-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-orange-500 text-white rounded-full p-2">
-                    <Flame className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-orange-900">Week Streak Achievement!</div>
-                    <div className="text-sm text-orange-700">You've studied for {currentStreak} days straight!</div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-blue-600" />
-              Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Link href="/chat" className="block">
-              <Button className="w-full justify-start" variant="outline">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Start AI Chat
-              </Button>
-            </Link>
-            <Link href="/classes" className="block">
-              <Button className="w-full justify-start" variant="outline">
-                <BookOpen className="h-4 w-4 mr-2" />
-                View Classes
-              </Button>
-            </Link>
-            <Link href="/chat" className="block">
-              <Button className="w-full justify-start" variant="outline">
-                <FileText className="h-4 w-4 mr-2" />
-                Take Notes
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-
-      {recentActivity.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
-              Recent Activity
-            </CardTitle>
-            <CardDescription>Your latest learning activities</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentActivity.map((activity) => (
-                <div key={activity.id} className="flex items-center gap-3 pb-3 border-b last:border-0 last:pb-0">
-                  <div className="bg-blue-100 rounded-full p-2">
-                    <FileText className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-slate-900">{activity.title}</div>
-                    <div className="text-xs text-slate-500">
-                      {new Date(activity.timestamp).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {stats.activeClasses === 0 && (
-        <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <div className="bg-blue-100 rounded-full p-4 w-16 h-16 mx-auto flex items-center justify-center">
-                <BookOpen className="h-8 w-8 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Ready to start learning?</h3>
-                <p className="text-slate-600 mt-1">Create your first class to begin your journey!</p>
-              </div>
-              <Link href="/classes">
-                <Button className="bg-blue-600 hover:bg-blue-700">
-                  Create Your First Class
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+function ActionCard({ icon, title, desc, color, textColor, hoverColor }: any) {
+  return (
+    <div className={cn(
+      "group relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:shadow-md cursor-pointer border h-full flex flex-col justify-center",
+      color,
+      hoverColor
+    )}>
+      <div className="mb-3 w-fit rounded-lg p-0">{icon}</div>
+      <div className={cn("font-bold text-sm mb-0.5", textColor)}>{title}</div>
+      {desc && <div className={cn("text-xs opacity-80", textColor)}>{desc}</div>}
     </div>
   );
 }
