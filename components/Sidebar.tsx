@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useClasses } from '@/hooks/use-classes';
 import {
   MessageSquare,
   Plus,
@@ -13,7 +14,8 @@ import {
   LayoutDashboard,
   Settings,
   Sparkles,
-  Flame
+  Flame,
+  BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -21,53 +23,50 @@ import { cn } from '@/lib/utils';
 
 const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 
-interface Class {
-  id: string;
-  name: string;
-}
-
 export function Sidebar() {
-  const [classes, setClasses] = useState<Class[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
 
   const { user, credits, isPro, currentStreak } = useAuth();
+  const { classes } = useClasses(user?.id); // Synced with SWR cache
+  
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
-
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchClasses = async () => {
-      const { data: classData } = await supabase
-        .from('classes')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .limit(10);
-
-      if (classData) setClasses(classData);
-    };
-
-    fetchClasses();
-  }, [user]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push('/login');
   };
 
+  const NavItem = ({ href, icon: Icon, label }: { href: string; icon: any; label: string }) => (
+    <Button
+      onClick={() => router.push(href)}
+      variant={pathname === href ? 'secondary' : 'ghost'}
+      className={cn(
+        "w-full justify-start font-medium transition-all group",
+        pathname === href 
+          ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" 
+          : "text-slate-600 hover:bg-slate-50 hover:text-blue-600",
+        isCollapsed && "justify-center px-2"
+      )}
+    >
+      <Icon className={cn("h-5 w-5", pathname === href ? "text-blue-700" : "text-slate-500 group-hover:text-blue-600")} />
+      {!isCollapsed && <span className="ml-3">{label}</span>}
+    </Button>
+  );
+
   return (
     <div className={cn(
-      "h-full bg-gradient-to-b from-slate-50 via-blue-50/30 to-slate-50 border-r border-slate-200 flex flex-col transition-all duration-300 shadow-lg z-50",
+      "h-full bg-white border-r border-slate-200 flex flex-col transition-all duration-300 shadow-xl shadow-slate-200/50 z-50",
       isCollapsed ? "w-16" : "w-64"
     )}>
       {/* Header */}
-      <div className="p-4 flex items-center justify-between border-b border-slate-200/60 h-16 shrink-0 bg-white/50 backdrop-blur-sm">
+      <div className="p-4 flex items-center justify-between h-16 shrink-0 border-b border-slate-100">
         {!isCollapsed && (
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center text-white font-bold shadow-md">A</div>
-            <span className="font-bold text-slate-800 text-lg">Altus</span>
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">A</div>
+            <span className="font-bold text-slate-800 text-lg tracking-tight">Altus</span>
           </div>
         )}
         <Button
@@ -81,132 +80,102 @@ export function Sidebar() {
       </div>
 
       {/* Main Navigation */}
-      <ScrollArea className="flex-1 py-4">
-        <div className="px-3 space-y-6">
+      <ScrollArea className="flex-1 py-6">
+        <div className="px-3 space-y-8">
           
-          <div className="space-y-1.5">
-            <Button
-              onClick={() => router.push('/dashboard')}
-              variant={pathname === '/dashboard' ? 'secondary' : 'ghost'}
-              className={cn(
-                "w-full justify-start font-medium transition-all",
-                pathname === '/dashboard' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
-                isCollapsed && "justify-center px-2"
-              )}
-            >
-              <LayoutDashboard className="h-5 w-5" />
-              {!isCollapsed && <span className="ml-3">Dashboard</span>}
-            </Button>
-
-            <Button
-              onClick={() => router.push('/chat')}
-              variant={pathname === '/chat' ? 'secondary' : 'ghost'}
-              className={cn(
-                "w-full justify-start font-medium transition-all",
-                pathname === '/chat' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
-                isCollapsed && "justify-center px-2"
-              )}
-            >
-              <MessageSquare className="h-5 w-5" />
-              {!isCollapsed && <span className="ml-3">AI Chat</span>}
-            </Button>
-
-            <Button
-              onClick={() => router.push('/settings')}
-              variant={pathname === '/settings' ? 'secondary' : 'ghost'}
-              className={cn(
-                "w-full justify-start font-medium transition-all",
-                pathname === '/settings' ? "bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-100" : "text-slate-700 hover:bg-white/80 hover:text-blue-600 hover:shadow-sm",
-                isCollapsed && "justify-center px-2"
-              )}
-            >
-              <Settings className="h-5 w-5" />
-              {!isCollapsed && <span className="ml-3">Settings</span>}
-            </Button>
+          <div className="space-y-1">
+            <NavItem href="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+            <NavItem href="/classes" icon={BookOpen} label="My Classes" />
+            <NavItem href="/chat" icon={MessageSquare} label="AI Chat" />
+            <NavItem href="/settings" icon={Settings} label="Settings" />
           </div>
 
           {!isCollapsed && (
-            <>
-              {/* Classes List */}
-              <div className="px-2">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">My Classes</h3>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-blue-50 text-slate-400 hover:text-blue-600" onClick={() => router.push('/classes')}>
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="space-y-1.5">
-                  {classes.map((cls) => {
-                    const isActive = pathname === `/classes/${cls.id}`;
-                    return (
-                      <button
-                        key={cls.id}
-                        onClick={() => router.push(`/classes/${cls.id}`)}
-                        className={cn(
-                          "w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2.5 group relative",
-                          isActive
-                            ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md shadow-blue-200 ring-2 ring-blue-300 font-medium"
-                            : "text-slate-700 hover:bg-white hover:text-blue-600 hover:shadow-sm"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-2 h-2 rounded-full transition-all shrink-0",
-                          isActive ? "bg-white shadow-sm" : "bg-slate-300 group-hover:bg-blue-500"
-                        )} />
-                        <span className="truncate">{cls.name}</span>
-                      </button>
-                    );
-                  })}
-                  {classes.length === 0 && <p className="text-xs text-slate-400 px-3 italic">No classes yet</p>}
-                </div>
+            <div className="px-2">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quick Access</h3>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-5 w-5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-full" 
+                  onClick={() => router.push('/classes')}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
               </div>
-            </>
+              <div className="space-y-1">
+                {classes?.map((cls: any) => {
+                  const isActive = pathname === `/classes/${cls.id}`;
+                  return (
+                    <button
+                      key={cls.id}
+                      onClick={() => router.push(`/classes/${cls.id}`)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-lg text-sm transition-all flex items-center gap-3 group",
+                        isActive
+                          ? "bg-slate-50 text-slate-900 font-medium border border-slate-200"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      )}
+                    >
+                      <div 
+                        className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10 transition-transform group-hover:scale-110" 
+                        style={{ backgroundColor: cls.color || '#94a3b8' }}
+                      />
+                      <span className="truncate">{cls.name}</span>
+                    </button>
+                  );
+                })}
+                {(!classes || classes.length === 0) && (
+                  <div className="text-center py-4 border-2 border-dashed border-slate-100 rounded-lg">
+                    <p className="text-xs text-slate-400 mb-2">No classes yet</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={() => router.push('/classes')}
+                    >
+                      Add Class
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </ScrollArea>
 
-      {/* Footer Area: Credits & Logout */}
-      <div className="p-4 border-t border-slate-200/60 bg-white/40 backdrop-blur-sm">
+      {/* Footer Area */}
+      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
         {!isCollapsed && (
           <>
-            {/* Streak Counter - Free Users Only */}
             {!isPro && (
-              <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200 rounded-xl p-4 mb-3 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
+              <div className="bg-white border border-orange-100 rounded-xl p-3 mb-3 shadow-sm relative overflow-hidden group">
+                 <div className="absolute inset-0 bg-gradient-to-r from-orange-50/50 to-red-50/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex items-center justify-between mb-2 relative z-10">
+                  <div className="flex items-center gap-1.5">
                     <Flame className={cn("w-4 h-4", currentStreak >= 5 ? "text-orange-500" : "text-orange-400")} />
-                    <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Study Streak</span>
+                    <span className="text-xs font-bold text-slate-700">Streak</span>
                   </div>
-                  <span className="text-lg font-bold text-orange-600">{currentStreak}</span>
+                  <span className="text-sm font-bold text-orange-600">{currentStreak}</span>
                 </div>
-
-                <div className="flex gap-1 mb-2">
+                <div className="flex gap-1 h-1.5 relative z-10">
                   {[1, 2, 3, 4, 5].map((day) => (
                     <div
                       key={day}
                       className={cn(
-                        "flex-1 h-1.5 rounded-full transition-all duration-300",
-                        currentStreak >= day ? "bg-orange-500" : "bg-orange-200"
+                        "flex-1 rounded-full transition-all duration-300",
+                        currentStreak >= day ? "bg-orange-500" : "bg-orange-100"
                       )}
                     />
                   ))}
                 </div>
-
-                <p className="text-xs text-slate-600">
-                  {currentStreak >= 5 ? (
-                    <span className="font-semibold text-orange-600">Amazing! Keep it up! 🎉</span>
-                  ) : (
-                    <>Study <span className="font-semibold">{5 - currentStreak} more day{5 - currentStreak !== 1 ? 's' : ''}</span> for <span className="font-semibold">+10 credits</span></>
-                  )}
-                </p>
               </div>
             )}
 
-            {/* Credits Display */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5 mb-3 shadow-sm">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Daily Limit</span>
-                <span className="text-xs font-bold text-blue-600">{isPro ? '∞' : `${credits}/5`}</span>
+                <span className="text-xs font-semibold text-slate-500">Credits</span>
+                <span className="text-xs font-bold text-blue-600">{isPro ? 'Unlimited' : `${credits}/5`}</span>
               </div>
 
               <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-3">
@@ -220,13 +189,13 @@ export function Sidebar() {
                 <Button
                   onClick={() => setShowPaywall(true)}
                   size="sm"
-                  className="w-full bg-slate-900 text-white hover:bg-slate-800 text-xs h-8 shadow-sm"
+                  className="w-full bg-slate-900 text-white hover:bg-slate-800 text-xs h-8 shadow-sm font-medium"
                 >
-                  <Sparkles className="w-3 h-3 mr-2 text-yellow-400" />
-                  Upgrade to Pro
+                  <Sparkles className="w-3 h-3 mr-1.5 text-yellow-400" />
+                  Upgrade Pro
                 </Button>
               ) : (
-                <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 bg-slate-50 py-1.5 rounded-lg border border-slate-100">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-50 py-1.5 rounded-lg border border-slate-100">
                   <Sparkles className="w-3 h-3 text-blue-500" />
                   <span>Pro Active</span>
                 </div>
@@ -239,12 +208,12 @@ export function Sidebar() {
           onClick={handleSignOut}
           variant="ghost"
           className={cn(
-            "w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors",
-            isCollapsed && "justify-center px-2"
+            "w-full justify-start text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors h-9",
+            isCollapsed && "justify-center px-0"
           )}
         >
-          <LogOut className="h-5 w-5" />
-          {!isCollapsed && <span className="ml-3">Sign Out</span>}
+          <LogOut className="h-4 w-4" />
+          {!isCollapsed && <span className="ml-3 text-sm">Sign Out</span>}
         </Button>
       </div>
 
