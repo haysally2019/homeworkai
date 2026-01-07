@@ -23,7 +23,7 @@ FORMATTING:
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, imageBase64, mode, userId, context } = await request.json();
+    const { text, imageBase64, mode, userId, context, classId } = await request.json();
 
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -57,17 +57,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
 
-    // 2. Initialize Gemini
+    // 2. FETCH LIVE NOTES & CONTEXT (RAG)
+    let augmentedContext = context || '';
+    
+    if (classId) {
+        // Fetch recent notes for this class
+        const { data: notes } = await supabase
+            .from('class_notes')
+            .select('title, formatted_notes')
+            .eq('class_id', classId)
+            .order('created_at', { ascending: false })
+            .limit(3); // Fetch last 3 notes to keep context relevant but concise
+
+        if (notes && notes.length > 0) {
+            const notesText = notes.map(n => `[Note: ${n.title}]\n${n.formatted_notes}`).join('\n\n');
+            augmentedContext += `\n\n[HIDDEN CONTEXT - LIVE NOTES]:\nUse the following notes from the student's class to inform your answer. Prioritize this information:\n${notesText}`;
+        }
+        
+        // (Optional) If you had document chunks, you would fetch them here using pgvector
+    }
+
+    // 3. Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
     
-    // Using experimental flash model for speed and accuracy
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp', 
+      model: 'gemini-2.0-flash-exp', // 2.0 Flash has huge context window, perfect for stuffing notes
       systemInstruction: SYSTEM_PROMPT,
     });
 
     let prompt = `[${mode.toUpperCase()} TASK]\n${text}`;
-    if (context) prompt += `\n\nCONTEXT FROM ASSIGNMENT:\n${context}`;
+    if (augmentedContext) prompt += `\n\nCONTEXT FROM SYSTEM (Student cannot see this):\n${augmentedContext}`;
     
     let result;
     if (imageBase64) {
