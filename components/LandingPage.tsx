@@ -273,7 +273,7 @@ export function LandingPage() {
             />
             <FAQItem 
               question="Does it work for advanced math?"
-              answer="Absolutely. Altus is powered by Google Gemini 2.0, capable of solving complex Calculus, Linear Algebra, Statistics, and Physics problems with high accuracy."
+              answer="Absolutely. Altus is powered by Google Gemini, capable of solving complex Calculus, Linear Algebra, Statistics, and Physics problems with high accuracy."
             />
             <FAQItem 
               question="Can it read my handwriting?"
