@@ -5,16 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   Brain, 
-  Zap, 
   Sparkles, 
   ArrowRight, 
   GraduationCap, 
   CheckCircle2, 
   XCircle,
-  MessageSquare,
   FileText,
   ShieldCheck,
-  ChevronDown
 } from 'lucide-react';
 import {
   Accordion,
@@ -55,10 +52,10 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-20 pb-24 md:pt-32 md:pb-32">
+      <section className="relative overflow-hidden pt-12 pb-16 md:pt-20 md:pb-24">
         <div className="container px-4 md:px-6 mx-auto relative z-10">
-          <div className="text-center max-w-4xl mx-auto space-y-8">
-            <div className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50/50 px-4 py-1.5 text-sm font-medium text-blue-700 mb-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+          <div className="text-center max-w-4xl mx-auto space-y-6">
+            <div className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50/50 px-4 py-1.5 text-sm font-medium text-blue-700 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-1000">
               <Sparkles className="mr-2 h-4 w-4 fill-blue-700/20" />
               <span>Now powered by Google Gemini 2.0</span>
             </div>
@@ -74,7 +71,7 @@ export function LandingPage() {
               Stop stressing over assignments. Altus solves problems, grades essays, and organizes your notes—instantly and accurately.
             </p>
             
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
               <Link href="/signup" className="w-full sm:w-auto">
                 <Button size="lg" className="w-full h-14 px-10 text-lg rounded-full bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-600/20 transition-all hover:-translate-y-1">
                   Start Learning for Free
@@ -88,7 +85,7 @@ export function LandingPage() {
               </Link>
             </div>
             
-            <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 pt-8 text-sm text-slate-500">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 pt-6 text-sm text-slate-500">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-500" /> No credit card required
               </div>
@@ -107,9 +104,9 @@ export function LandingPage() {
       </section>
 
       {/* Social Proof */}
-      <section className="py-10 border-y border-slate-100 bg-slate-50/50">
+      <section className="py-8 border-y border-slate-100 bg-slate-50/50">
         <div className="container px-4 mx-auto">
-          <p className="text-center text-sm font-bold text-slate-400 uppercase tracking-widest mb-8">
+          <p className="text-center text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">
             Trusted by students at
           </p>
           <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-40 grayscale mix-blend-multiply">
@@ -123,9 +120,9 @@ export function LandingPage() {
       </section>
 
       {/* Comparison Section (Pain vs Gain) */}
-      <section className="py-24 bg-white">
+      <section className="py-16 md:py-24 bg-white">
         <div className="container px-4 mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Why students switch to Altus</h2>
             <p className="text-lg text-slate-500">Stop doing things the hard way.</p>
           </div>
@@ -194,9 +191,9 @@ export function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="py-24 bg-slate-50">
+      <section id="features" className="py-16 md:py-24 bg-slate-50">
         <div className="container px-4 mx-auto">
-          <div className="text-center max-w-3xl mx-auto mb-16">
+          <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
               Everything you need to <span className="text-blue-600">ace the semester</span>
             </h2>
@@ -226,9 +223,9 @@ export function LandingPage() {
             />
           </div>
 
-          <div className="mt-16 text-center">
+          <div className="mt-12 text-center">
             <Link href="/signup">
-              <Button className="bg-slate-900 hover:bg-slate-800 text-white rounded-full px-8 py-6 text-lg shadow-lg">
+              <Button className="bg-slate-900 hover:bg-slate-800 text-white rounded-full px-8 py-6 text-lg shadow-lg transition-transform hover:scale-105">
                 Create Your Free Account
               </Button>
             </Link>
@@ -237,9 +234,9 @@ export function LandingPage() {
       </section>
 
       {/* Testimonials */}
-      <section id="reviews" className="py-24 bg-white">
+      <section id="reviews" className="py-16 md:py-24 bg-white">
         <div className="container px-4 mx-auto">
-          <h2 className="text-3xl font-bold text-center text-slate-900 mb-16">Loved by thousands of students</h2>
+          <h2 className="text-3xl font-bold text-center text-slate-900 mb-12">Loved by thousands of students</h2>
           
           <div className="grid md:grid-cols-3 gap-8">
             <TestimonialCard 
@@ -265,9 +262,9 @@ export function LandingPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-24 bg-slate-50 border-t border-slate-100">
+      <section className="py-16 md:py-24 bg-slate-50 border-t border-slate-100">
         <div className="container px-4 mx-auto max-w-3xl">
-          <h2 className="text-3xl font-bold text-center text-slate-900 mb-12">Frequently Asked Questions</h2>
+          <h2 className="text-3xl font-bold text-center text-slate-900 mb-8">Frequently Asked Questions</h2>
           
           <Accordion type="single" collapsible className="w-full space-y-4">
             <FAQItem 
@@ -291,18 +288,18 @@ export function LandingPage() {
       </section>
 
       {/* Bottom CTA Banner */}
-      <section className="py-20 bg-blue-600 relative overflow-hidden">
+      <section className="py-16 md:py-20 bg-blue-600 relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
         <div className="container px-4 mx-auto text-center relative z-10">
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 tracking-tight">
             Ready to boost your grades?
           </h2>
-          <p className="text-blue-100 text-lg md:text-xl mb-10 max-w-2xl mx-auto">
+          <p className="text-blue-100 text-lg md:text-xl mb-8 max-w-2xl mx-auto">
             Join thousands of students who are saving time and learning faster with Altus.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/signup">
-              <Button size="lg" className="h-14 px-8 bg-white text-blue-600 hover:bg-blue-50 font-bold text-lg rounded-full shadow-2xl border-2 border-transparent hover:border-blue-200">
+              <Button size="lg" className="h-14 px-8 bg-white text-blue-600 hover:bg-blue-50 font-bold text-lg rounded-full shadow-2xl border-2 border-transparent hover:border-blue-200 transition-all hover:scale-105">
                 Get Started for Free
               </Button>
             </Link>
