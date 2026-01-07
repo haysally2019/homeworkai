@@ -7,17 +7,17 @@ export const dynamic = 'force-dynamic';
 const SYSTEM_PROMPT = `You are ALTUS, an advanced Academic AI Assistant.
 
 CORE PROTOCOLS:
-1. **Solver Mode:** Provide direct, step-by-step solutions. Use LaTeX for math ($x^2$).
-2. **Tutor Mode:** Ask guiding questions. Do not give the answer immediately.
-3. **Note Taker Mode:** Format raw notes into strict Markdown. Ignore conversational filler.
+1. **Solver Mode:** Provide direct, step-by-step solutions with final answers clearly marked. Use LaTeX for math.
+2. **Tutor Mode:** Do not give the answer. Ask guiding questions to help the student solve it.
+3. **Note Taker Mode:** When asked to format notes, ignore conversational fillers. Output strict, clean Markdown with summaries.
 
 FORMATTING:
-- Math: Use LaTeX wrapped in $ or $$.
-- Text: Use standard Markdown.`;
+- Use LaTeX for math: $$ x^2 $$ or $ x $.
+- Use Markdown for text (## Headings, **Bold**, etc).`;
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, imageBase64, mode, userId, context, stream } = await request.json();
+    const { text, imageBase64, mode, userId, context } = await request.json();
 
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -43,59 +43,48 @@ export async function POST(request: NextRequest) {
       userCredits = newCredits;
     }
 
+    if (!userCredits) {
+      return NextResponse.json({ error: 'Failed to load user credits' }, { status: 500 });
+    }
+
     if (!userCredits.is_pro && userCredits.credits < 1) {
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
 
     // 2. Initialize Gemini 2.0
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
-    const model = genAI.getGenerativeModel({ 
+    
+    // *** CRITICAL: USING GEMINI 2.0 FLASH EXPERIMENTAL ***
+    const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash-exp', 
-      systemInstruction: SYSTEM_PROMPT 
+      systemInstruction: SYSTEM_PROMPT,
     });
 
     let prompt = mode === 'solver' ? `[SOLVER TASK]\n${text}` : `[TUTOR TASK]\n${text}`;
-    if (context) prompt += `\n\nCONTEXT:\n${context}`;
-
-    // Prepare content parts (Text + Image if exists)
-    const parts: any[] = [prompt];
+    if (context) prompt += `\n\nCONTEXT FROM ASSIGNMENT:\n${context}`;
+    
+    let result;
     if (imageBase64) {
       const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-      parts.push({
-        inlineData: {
-          data: cleanBase64,
-          mimeType: 'image/jpeg' // We assume JPEG or convert on client
-        }
-      });
+      result = await model.generateContent([prompt, { inlineData: { data: cleanBase64, mimeType: 'image/jpeg' } }]);
+    } else {
+      result = await model.generateContent(prompt);
     }
 
-    // 3. Deduct Credit (Optimistic)
+    const responseText = await result.response.text();
+
     if (!userCredits.is_pro) {
       await supabase.from('users_credits').update({ credits: userCredits.credits - 1 }).eq('id', userId);
     }
-    const remaining = userCredits.is_pro ? 'Unlimited' : (userCredits.credits - 1).toString();
 
-    // 4. Handle STREAMING Request (Chat & Notes)
-    // 4. Handle STREAMING Request
-    if (stream) {
-      const result = await model.generateContentStream(prompt);
-      const result = await model.generateContentStream(parts);
-      const encoder = new TextEncoder();
-
-      const readable = new ReadableStream({
-@@ -92,14 +104,14 @@
-    }
-
-    // 5. Handle STANDARD Request (Quizzes/JSON)
-    const result = await model.generateContent(prompt);
-    const result = await model.generateContent(parts);
     return NextResponse.json({
-      response: result.response.text(),
+      response: responseText,
       remainingCredits: userCredits.is_pro ? 999 : userCredits.credits - 1,
       isPro: userCredits.is_pro,
     });
 
   } catch (error: any) {
     console.error('API Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
+}
