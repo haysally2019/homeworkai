@@ -57,15 +57,27 @@ export async function POST(request: NextRequest) {
     let prompt = mode === 'solver' ? `[SOLVER TASK]\n${text}` : `[TUTOR TASK]\n${text}`;
     if (context) prompt += `\n\nCONTEXT:\n${context}`;
 
+    // Prepare content parts (Text + Image if exists)
+    const parts: any[] = [prompt];
+    if (imageBase64) {
+      const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+      parts.push({
+        inlineData: {
+          data: cleanBase64,
+          mimeType: 'image/jpeg' // We assume JPEG or convert on client
+        }
+      });
+    }
+
     // 3. Deduct Credit (Optimistic)
     if (!userCredits.is_pro) {
       await supabase.from('users_credits').update({ credits: userCredits.credits - 1 }).eq('id', userId);
     }
     const remaining = userCredits.is_pro ? 'Unlimited' : (userCredits.credits - 1).toString();
 
-    // 4. Handle STREAMING Request (Chat & Notes)
+    // 4. Handle STREAMING Request
     if (stream) {
-      const result = await model.generateContentStream(prompt);
+      const result = await model.generateContentStream(parts);
       const encoder = new TextEncoder();
       
       const readable = new ReadableStream({
@@ -92,7 +104,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Handle STANDARD Request (Quizzes/JSON)
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(parts);
     return NextResponse.json({
       response: result.response.text(),
       remainingCredits: userCredits.is_pro ? 999 : userCredits.credits - 1,
