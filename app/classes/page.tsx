@@ -1,240 +1,290 @@
 'use client';
 
-import { useState, lazy, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
-import { useClasses, createClass, deleteClass } from '@/hooks/use-classes';
-import { useAuth } from '@/lib/auth-context';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, BookOpen, GraduationCap, ChevronRight, MoreVertical, Trash2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils'; // Import cn utility
+import { 
+  ArrowLeft, 
+  BookOpen, 
+  GraduationCap, 
+  Loader2, 
+  MessageSquare, 
+  CalendarCheck, 
+  FileText,
+  CheckCircle2,
+  PenTool 
+} from 'lucide-react';
+import { MaterialsTab } from '@/components/class-tabs/MaterialsTab';
+import { NotesTab } from '@/components/class-tabs/NotesTab';
+import { AssignmentsTab } from '@/components/class-tabs/AssignmentsTab';
+import { ClassChatInterface } from '@/components/ClassChatInterface';
+import { MessageRenderer } from '@/components/MessageRenderer';
+import { useAuth } from '@/lib/auth-context';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
 const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 
-export default function ClassesPage() {
+export default function ClassDetailsPage() {
+  const params = useParams();
   const router = useRouter();
-  const { user, isPro } = useAuth();
-  const { classes, isLoading, mutate } = useClasses(user?.id);
+  const supabase = createClient();
+  const { user, refreshCredits, credits, isPro } = useAuth();
   
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [classData, setClassData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('chat');
+  
+  // PERFORMANCE: Only load background tabs after the page has painted
+  const [isReady, setIsReady] = useState(false);
+
+  // Grading State
+  const [essayText, setEssayText] = useState('');
+  const [isGrading, setIsGrading] = useState(false);
+  const [gradingResult, setGradingResult] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [newClass, setNewClass] = useState({ name: '', code: '', color: '#3b82f6' });
-  const [creating, setCreating] = useState(false);
 
-  const classCount = classes?.length || 0;
+  useEffect(() => {
+    const fetchClass = async () => {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('id', params.id)
+        .single();
 
-  const handleCreateClick = () => {
-    if (!isPro && classCount >= 1) {
+      if (error) {
+        console.error('Error fetching class:', error);
+        router.push('/classes');
+        return;
+      }
+      setClassData(data);
+      setLoading(false);
+    };
+
+    fetchClass();
+  }, [params.id, router]);
+
+  // OPTIMIZATION: Delay rendering of heavy tabs by 500ms to unblock navigation
+  useEffect(() => {
+    const timer = setTimeout(() => setIsReady(true), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleGradeEssay = async () => {
+    if (!essayText.trim() || !user) return;
+
+    if (!isPro && credits <= 0) {
       setShowPaywall(true);
       return;
     }
-    setIsDialogOpen(true);
-  };
 
-  const handleCreateClass = async () => {
-    if (!newClass.name || !newClass.code || !user) return;
-    setCreating(true);
+    setIsGrading(true);
+    setGradingResult(null);
+
     try {
-      await createClass(user.id, newClass);
-      setIsDialogOpen(false);
-      setNewClass({ name: '', code: '', color: '#3b82f6' });
-      toast.success('Class created successfully');
-      mutate();
+      const res = await fetch('/api/solve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: essayText,
+          mode: 'grader',
+          userId: user.id,
+          context: `Class: ${classData.name} (${classData.code})`,
+        }),
+      });
+
+      if (res.status === 402) {
+        setShowPaywall(true);
+        setIsGrading(false);
+        return;
+      }
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setGradingResult(data.response);
+      await refreshCredits();
+      toast.success('Essay graded successfully!');
+
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create class');
+      toast.error(error.message || 'Failed to grade essay');
     } finally {
-      setCreating(false);
+      setIsGrading(false);
     }
   };
 
-  const handleDeleteClass = async (e: React.MouseEvent, classId: string) => {
-    e.stopPropagation(); // Prevent card click
-    if (!user || !confirm('Are you sure you want to delete this class? All data will be lost.')) return;
-    
-    try {
-        await deleteClass(user.id, classId);
-        toast.success('Class deleted');
-        mutate();
-    } catch (error) {
-        toast.error('Failed to delete class');
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
+  if (!classData) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 md:p-10">
-      <div className="mx-auto max-w-6xl space-y-8">
-        
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">My Classes</h1>
-            <p className="mt-1 text-slate-500">Manage your courses and learning materials.</p>
-          </div>
-          <Button onClick={handleCreateClick} size="lg" className="bg-blue-600 font-medium text-white shadow-sm hover:bg-blue-700 hover:shadow-md transition-all">
-            <Plus className="mr-2 h-5 w-5" /> 
-            Add New Class
+    <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
+      <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 shrink-0 z-10 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => router.push('/classes')} className="hover:bg-slate-100 rounded-full">
+            <ArrowLeft className="h-5 w-5 text-slate-500" />
           </Button>
+          <div>
+            <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full ring-2 ring-white shadow-sm" style={{ backgroundColor: classData.color || '#3b82f6' }} />
+              {classData.name}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">{classData.code}</p>
+          </div>
+        </div>
+      </header>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        {/* FIXED: Added z-10 to ensure tabs are always clickable */}
+        <div className="px-4 md:px-6 py-2 bg-white border-b border-slate-200 shrink-0 overflow-x-auto z-10 relative shadow-sm">
+          <TabsList className="bg-slate-100 p-1 w-full sm:w-auto grid grid-cols-5 sm:flex rounded-lg min-w-[320px]">
+            <TabsTrigger value="chat" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
+                <MessageSquare className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Chat</span>
+            </TabsTrigger>
+            <TabsTrigger value="notes" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
+                <PenTool className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Notes</span>
+            </TabsTrigger>
+            <TabsTrigger value="materials" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
+                <BookOpen className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Docs</span>
+            </TabsTrigger>
+            <TabsTrigger value="assignments" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
+                <CalendarCheck className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Tasks</span>
+            </TabsTrigger>
+            <TabsTrigger value="grader" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
+                <GraduationCap className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Grader</span>
+            </TabsTrigger>
+          </TabsList>
         </div>
 
-        {/* Free Plan Limit Banner (Clean Design) */}
-        {!isPro && classCount > 0 && (
-          <div className="flex items-center justify-between rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-3 text-sm text-orange-800">
-            <span className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-200 text-xs font-bold text-orange-700">!</span>
-              Free plan limit reached ({classCount}/1 class).
-            </span>
-            <button onClick={() => setShowPaywall(true)} className="font-semibold underline hover:text-orange-900">
-              Upgrade to Pro
-            </button>
-          </div>
-        )}
+        <div className="flex-1 overflow-hidden relative bg-slate-50/50">
+          
+          {/* Chat Tab - Explicitly controlled visibility */}
+          <TabsContent 
+            value="chat" 
+            forceMount={true} 
+            className={cn(
+              "h-full m-0 flex-col",
+              activeTab === "chat" ? "flex" : "hidden"
+            )}
+          >
+             <ClassChatInterface classId={classData.id} className={classData.name} />
+          </TabsContent>
 
-        {/* Content Grid */}
-        {classCount === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-white py-24 text-center shadow-sm">
-            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50">
-              <BookOpen className="h-10 w-10 text-blue-500" />
-            </div>
-            <h3 className="text-xl font-semibold text-slate-900">No classes yet</h3>
-            <p className="mt-2 max-w-md text-slate-500">
-              Create your first class to start tracking assignments, taking smart notes, and using AI tutors.
-            </p>
-            <Button onClick={handleCreateClick} variant="outline" className="mt-8 border-slate-200 hover:bg-slate-50 hover:text-blue-600">
-              Create your first class
-            </Button>
-          </div>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {classes?.map((cls: any) => (
-              <Card 
-                key={cls.id} 
-                className="group relative cursor-pointer overflow-hidden border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-                onClick={() => router.push(`/classes/${cls.id}`)}
-              >
-                {/* Decorative Top Bar */}
-                <div className="h-2 w-full" style={{ backgroundColor: cls.color }} />
-                
-                <CardHeader className="pt-6 pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl shadow-sm transition-transform group-hover:scale-105" style={{ backgroundColor: `${cls.color}15` }}>
-                      <GraduationCap className="h-6 w-6" style={{ color: cls.color }} />
+          {/* Notes Tab - Explicitly controlled visibility */}
+          <TabsContent 
+            value="notes" 
+            forceMount={true} 
+            className={cn(
+              "h-full m-0 p-4 md:p-6 overflow-y-auto",
+              activeTab === "notes" ? "block" : "hidden"
+            )}
+          >
+            {(activeTab === 'notes' || isReady) && (
+              <div className="max-w-6xl mx-auto">
+                <NotesTab classId={classData.id} userId={user?.id || ''} />
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Materials Tab - Explicitly controlled visibility */}
+          <TabsContent 
+            value="materials" 
+            forceMount={true} 
+            className={cn(
+              "h-full m-0 p-4 md:p-6 overflow-y-auto",
+              activeTab === "materials" ? "block" : "hidden"
+            )}
+          >
+            {(activeTab === 'materials' || isReady) && (
+              <div className="max-w-6xl mx-auto">
+                <MaterialsTab classId={classData.id} userId={user?.id || ''} />
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Assignments Tab - Explicitly controlled visibility */}
+          <TabsContent 
+            value="assignments" 
+            forceMount={true} 
+            className={cn(
+              "h-full m-0 p-4 md:p-6 overflow-y-auto",
+              activeTab === "assignments" ? "block" : "hidden"
+            )}
+          >
+            {(activeTab === 'assignments' || isReady) && (
+              <div className="max-w-5xl mx-auto">
+                <AssignmentsTab classId={classData.id} userId={user?.id || ''} />
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Grader Tab - Explicitly controlled visibility */}
+          <TabsContent 
+            value="grader" 
+            forceMount={true} 
+            className={cn(
+              "h-full m-0 p-4 md:p-6 overflow-y-auto",
+              activeTab === "grader" ? "block" : "hidden"
+            )}
+          >
+             {(activeTab === 'grader' || isReady) && (
+               <div className="max-w-5xl mx-auto h-full flex flex-col">
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                      <GraduationCap className="w-6 h-6 text-blue-600" />
+                      Essay Grader
+                    </h2>
+                    <p className="text-slate-500">Get instant feedback on your writing before submitting.</p>
+                  </div>
+
+                  <div className="grid lg:grid-cols-2 gap-6 flex-1 min-h-0">
+                    <div className="flex flex-col gap-4 h-full min-h-[400px]">
+                      <Textarea 
+                        placeholder="Paste your essay here..." 
+                        className="flex-1 resize-none p-4 text-base leading-relaxed bg-white border-slate-200 focus-visible:ring-blue-500 shadow-sm rounded-xl"
+                        value={essayText}
+                        onChange={(e) => setEssayText(e.target.value)}
+                      />
+                      <Button 
+                        onClick={handleGradeEssay} 
+                        disabled={isGrading || !essayText.trim()}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md h-12 text-lg font-medium"
+                      >
+                        {isGrading ? (
+                          <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Analyzing...</>
+                        ) : (
+                          'Grade My Essay'
+                        )}
+                      </Button>
                     </div>
-                    
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-slate-600">
-                                <MoreVertical className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
-                                onClick={(e) => handleDeleteClass(e, cls.id)} 
-                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                            >
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete Class
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+
+                    <div className="h-full min-h-[400px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                      {gradingResult ? (
+                        <div className="prose prose-sm max-w-none prose-headings:font-bold prose-h1:text-2xl prose-p:text-slate-600">
+                          <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
+                            <div className="w-8 h-8 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                              <CheckCircle2 className="w-5 h-5" />
+                            </div>
+                            <span className="font-bold text-lg text-slate-900">Feedback Report</span>
+                          </div>
+                          <MessageRenderer content={gradingResult} role="assistant" />
+                        </div>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 opacity-50">
+                          <FileText className="w-16 h-16" />
+                          <p className="font-medium">Feedback will appear here</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <CardTitle className="mt-4 text-xl font-bold text-slate-900">{cls.name}</CardTitle>
-                  <div className="mt-1 inline-block rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-slate-600">
-                    {cls.code}
-                  </div>
-                </CardHeader>
+               </div>
+             )}
+          </TabsContent>
+        </div>
+      </Tabs>
 
-                <CardContent className="pb-6">
-                   <p className="text-sm text-slate-400">View notes, docs & chat</p>
-                </CardContent>
-
-                <div className="absolute bottom-4 right-4 opacity-0 transition-opacity group-hover:opacity-100">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600">
-                    <ChevronRight className="h-4 w-4" />
-                  </div>
-                </div>
-              </Card>
-            ))}
-            
-            {/* "Add Class" Ghost Card */}
-            <button
-               onClick={handleCreateClick}
-               className="group flex h-full min-h-[220px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 transition-all hover:border-blue-400 hover:bg-blue-50/30"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm transition-transform group-hover:scale-110">
-                <Plus className="h-6 w-6 text-blue-500" />
-              </div>
-              <span className="mt-4 font-medium text-slate-600 group-hover:text-blue-600">Add Another Class</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Create Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Create New Class</DialogTitle>
-            <DialogDescription>
-              Enter the details for your new course.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Class Name</Label>
-              <Input 
-                id="name"
-                placeholder="e.g. Advanced Calculus" 
-                value={newClass.name}
-                onChange={(e) => setNewClass({...newClass, name: e.target.value})}
-                className="h-11"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="code">Course Code</Label>
-              <Input 
-                id="code"
-                placeholder="e.g. MATH 301" 
-                value={newClass.code}
-                onChange={(e) => setNewClass({...newClass, code: e.target.value})}
-                className="h-11"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Color Tag</Label>
-              <div className="flex gap-3">
-                {['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'].map(color => (
-                  <button
-                    key={color}
-                    onClick={() => setNewClass({...newClass, color})}
-                    className={`h-8 w-8 rounded-full shadow-sm transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 ${newClass.color === color ? 'ring-2 ring-slate-900 ring-offset-2 scale-110' : ''}`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateClass} disabled={creating || !newClass.name || !newClass.code} className="bg-blue-600 hover:bg-blue-700">
-              {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Create Class
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Paywall Modal */}
       {showPaywall && (
         <Suspense fallback={null}>
           <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
