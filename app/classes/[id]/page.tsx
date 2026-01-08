@@ -144,8 +144,9 @@ export default function ClassDetailsPage() {
         </div>
 
         <div className="flex-1 overflow-hidden relative bg-slate-50/50">
+          {/* FIXED: Added forceMount={true} and hidden classes to all tabs */}
+          {/* This keeps components alive in the background (preventing lag) but hides them visually */}
           
-          {/* Chat Tab - Optimized to stay mounted */}
           <TabsContent 
             value="chat" 
             forceMount={true} 
@@ -154,7 +155,6 @@ export default function ClassDetailsPage() {
              <ClassChatInterface classId={classData.id} className={classData.name} />
           </TabsContent>
 
-          {/* Notes Tab - Optimized to stay mounted */}
           <TabsContent 
             value="notes" 
             forceMount={true} 
@@ -165,7 +165,6 @@ export default function ClassDetailsPage() {
             </div>
           </TabsContent>
 
-          {/* Materials Tab - Optimized to stay mounted */}
           <TabsContent 
             value="materials" 
             forceMount={true} 
@@ -176,7 +175,6 @@ export default function ClassDetailsPage() {
             </div>
           </TabsContent>
 
-          {/* Assignments Tab - Optimized to stay mounted */}
           <TabsContent 
             value="assignments" 
             forceMount={true} 
@@ -187,7 +185,6 @@ export default function ClassDetailsPage() {
             </div>
           </TabsContent>
 
-          {/* Grader Tab - Optimized to stay mounted */}
           <TabsContent 
             value="grader" 
             forceMount={true} 
