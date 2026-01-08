@@ -23,6 +23,10 @@ FORMATTING:
 
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.GOOGLE_GEMINI_API_KEY) {
+      return NextResponse.json({ error: 'Server configuration error: Missing Gemini API Key' }, { status: 500 });
+    }
+
     const { text, imageBase64, mode, userId, context, classId } = await request.json();
 
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -33,14 +37,20 @@ export async function POST(request: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // 1. Fetch User Credits & Reset Date
-    let { data: userCredits } = await supabase
+    // 1. Fetch User Credits
+    // We select '*' to avoid crashing if 'last_reset_date' column is missing in the DB
+    let { data: userCredits, error: dbError } = await supabase
       .from('users_credits')
-      .select('credits, is_pro, last_reset_date')
+      .select('*') 
       .eq('id', userId)
       .maybeSingle();
 
-    // Handle missing row (first time user)
+    if (dbError) {
+        console.error("DB Error:", dbError);
+        return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    }
+
+    // Handle first-time user
     if (!userCredits) {
       const { data: newCredits } = await supabase
         .from('users_credits')
@@ -48,39 +58,34 @@ export async function POST(request: NextRequest) {
             id: userId, 
             credits: 5, 
             is_pro: false,
-            last_reset_date: new Date().toISOString().split('T')[0]
+            // Safe fallback if column doesn't exist yet
+            ...( 'last_reset_date' in (userCredits || {}) ? { last_reset_date: new Date().toISOString().split('T')[0] } : {}) 
         })
         .select()
         .single();
       userCredits = newCredits;
     }
 
-    if (!userCredits) {
-      return NextResponse.json({ error: 'Failed to load user credits' }, { status: 500 });
+    // 2. CHECK FOR DAILY RESET (Safe Mode)
+    // Only attempt reset if the column exists in the returned data
+    if (userCredits && 'last_reset_date' in userCredits) {
+        const today = new Date().toISOString().split('T')[0];
+        if (!userCredits.is_pro && userCredits.last_reset_date !== today) {
+            await supabase
+                .from('users_credits')
+                .update({ credits: 5, last_reset_date: today })
+                .eq('id', userId);
+            userCredits.credits = 5; // Grant credits locally for this run
+        }
     }
 
-    // 2. CHECK FOR DAILY RESET
-    const today = new Date().toISOString().split('T')[0];
-    
-    if (!userCredits.is_pro && userCredits.last_reset_date !== today) {
-        await supabase
-            .from('users_credits')
-            .update({ 
-                credits: 5, 
-                last_reset_date: today 
-            })
-            .eq('id', userId);
-        userCredits.credits = 5;
+    // 3. Check Balance
+    if (userCredits && !userCredits.is_pro && userCredits.credits < 1) {
+      return NextResponse.json({ error: 'Daily limit reached. Upgrade to Pro for unlimited access.' }, { status: 402 });
     }
 
-    // 3. Check if they have credits NOW
-    if (!userCredits.is_pro && userCredits.credits < 1) {
-      return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
-    }
-
-    // 4. FETCH LIVE NOTES & CONTEXT (RAG)
+    // 4. Build Context (RAG)
     let augmentedContext = context || '';
-    
     if (classId) {
         const { data: notes } = await supabase
             .from('class_notes')
@@ -90,46 +95,49 @@ export async function POST(request: NextRequest) {
             .limit(3);
 
         if (notes && notes.length > 0) {
-            const notesText = notes.map(n => `[Note: ${n.title}]\n${n.formatted_notes}`).join('\n\n');
-            augmentedContext += `\n\n[HIDDEN CONTEXT - LIVE NOTES]:\nUse the following notes from the student's class to inform your answer. Prioritize this information:\n${notesText}`;
+            const notesText = notes.map((n: any) => `[Note: ${n.title}]\n${n.formatted_notes}`).join('\n\n');
+            augmentedContext += `\n\n[HIDDEN CONTEXT - LIVE NOTES]:\nUse the following notes from the student's class to inform your answer:\n${notesText}`;
         }
     }
 
-    // 5. Initialize Gemini
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
-    
-    // Using Gemini 1.5 Pro for best performance
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-pro',
-      systemInstruction: SYSTEM_PROMPT,
+    // 5. Initialize Gemini 1.5 Pro
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ 
+        model: 'gemini-1.5-pro',
+        systemInstruction: SYSTEM_PROMPT 
     });
 
     let prompt = `[${mode.toUpperCase()} TASK]\n${text}`;
-    if (augmentedContext) prompt += `\n\nCONTEXT FROM SYSTEM (Student cannot see this):\n${augmentedContext}`;
+    if (augmentedContext) prompt += `\n\nCONTEXT FROM SYSTEM:\n${augmentedContext}`;
     
     let result;
-    if (imageBase64) {
-      const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-      result = await model.generateContent([prompt, { inlineData: { data: cleanBase64, mimeType: 'image/jpeg' } }]);
-    } else {
-      result = await model.generateContent(prompt);
+    try {
+        if (imageBase64) {
+            const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+            result = await model.generateContent([prompt, { inlineData: { data: cleanBase64, mimeType: 'image/jpeg' } }]);
+        } else {
+            result = await model.generateContent(prompt);
+        }
+    } catch (aiError: any) {
+        console.error("Gemini API Error:", aiError);
+        return NextResponse.json({ error: 'AI Service Error. Please try again.' }, { status: 503 });
     }
 
     const responseText = await result.response.text();
 
-    // 6. Deduct Credit (if not Pro)
-    if (!userCredits.is_pro) {
+    // 6. Deduct Credit
+    if (userCredits && !userCredits.is_pro) {
       await supabase.from('users_credits').update({ credits: userCredits.credits - 1 }).eq('id', userId);
     }
 
     return NextResponse.json({
       response: responseText,
-      remainingCredits: userCredits.is_pro ? 999 : userCredits.credits - 1,
-      isPro: userCredits.is_pro,
+      remainingCredits: userCredits?.is_pro ? 999 : (userCredits?.credits || 1) - 1,
+      isPro: userCredits?.is_pro,
     });
 
   } catch (error: any) {
-    console.error('API Error:', error);
+    console.error('General API Error:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
