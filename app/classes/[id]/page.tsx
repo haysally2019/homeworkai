@@ -12,17 +12,18 @@ import {
   Loader2, 
   MessageSquare, 
   CalendarCheck, 
-  FileText,      // Added
-  CheckCircle2   // Added
+  FileText,
+  CheckCircle2,
+  PenTool 
 } from 'lucide-react';
 import { MaterialsTab } from '@/components/class-tabs/MaterialsTab';
+import { NotesTab } from '@/components/class-tabs/NotesTab'; // Ensure this exists
 import { AssignmentsTab } from '@/components/class-tabs/AssignmentsTab';
 import { ClassChatInterface } from '@/components/ClassChatInterface';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { useAuth } from '@/lib/auth-context';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
 const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 
@@ -122,18 +123,21 @@ export default function ClassDetailsPage() {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-        <div className="px-4 md:px-6 py-2 bg-white border-b border-slate-200 shrink-0">
-          <TabsList className="bg-slate-100 p-1 w-full sm:w-auto grid grid-cols-4 sm:flex rounded-lg">
-            <TabsTrigger value="chat" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm">
-                <MessageSquare className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">AI Chat</span>
+        <div className="px-4 md:px-6 py-2 bg-white border-b border-slate-200 shrink-0 overflow-x-auto">
+          <TabsList className="bg-slate-100 p-1 w-full sm:w-auto grid grid-cols-5 sm:flex rounded-lg min-w-[320px]">
+            <TabsTrigger value="chat" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
+                <MessageSquare className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Chat</span>
             </TabsTrigger>
-            <TabsTrigger value="materials" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm">
-                <BookOpen className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Materials</span>
+            <TabsTrigger value="notes" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
+                <PenTool className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Notes</span>
             </TabsTrigger>
-            <TabsTrigger value="assignments" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm">
-                <CalendarCheck className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Assignments</span>
+            <TabsTrigger value="materials" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
+                <BookOpen className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Docs</span>
             </TabsTrigger>
-            <TabsTrigger value="grader" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm">
+            <TabsTrigger value="assignments" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
+                <CalendarCheck className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Tasks</span>
+            </TabsTrigger>
+            <TabsTrigger value="grader" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
                 <GraduationCap className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Grader</span>
             </TabsTrigger>
           </TabsList>
@@ -141,8 +145,13 @@ export default function ClassDetailsPage() {
 
         <div className="flex-1 overflow-hidden relative bg-slate-50/50">
           <TabsContent value="chat" className="h-full m-0 data-[state=active]:flex flex-col">
-             {/* No padding for chat to make it feel native */}
              <ClassChatInterface classId={classData.id} className={classData.name} />
+          </TabsContent>
+
+          <TabsContent value="notes" className="h-full m-0 p-4 md:p-6 overflow-y-auto">
+            <div className="max-w-6xl mx-auto">
+              <NotesTab classId={classData.id} userId={user?.id || ''} />
+            </div>
           </TabsContent>
 
           <TabsContent value="materials" className="h-full m-0 p-4 md:p-6 overflow-y-auto">
