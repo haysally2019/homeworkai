@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
 
@@ -99,7 +98,7 @@ export async function POST(request: NextRequest) {
     // 5. Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
     
-    // SWITCHED TO GEMINI 1.5 PRO - The strongest stable model
+    // Using Gemini 1.5 Pro for best performance
     const model = genAI.getGenerativeModel({
       model: 'gemini-1.5-pro',
       systemInstruction: SYSTEM_PROMPT,
