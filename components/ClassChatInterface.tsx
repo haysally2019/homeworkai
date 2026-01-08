@@ -5,7 +5,6 @@ import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Camera, Send, Loader2, Sparkles, Bot, User, Paperclip } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { toast } from 'sonner';
@@ -31,7 +30,7 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
   const [showPaywall, setShowPaywall] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
 
-  // CHANGED: Use a ref for the scroll container instead of a dummy div at the end
+  // FIXED: Ref is now attached to the scrollable container, not a div at the bottom
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,14 +65,12 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
     loadConversation();
   }, [user, classId, className]);
 
-  // CHANGED: Improved scrolling logic to prevent parent layout shifts
+  // FIXED: Use scrollTop on the container instead of scrollIntoView
+  // This prevents the entire browser window from jumping up
   useEffect(() => { 
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current;
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: 'smooth'
-      });
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
     }
   }, [messages]);
 
@@ -169,9 +166,9 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
   };
 
   return (
-    // CHANGED: Added min-h-0 to prevent flexbox overflow issues
+    // FIXED: Added min-h-0 to ensure proper flex behavior inside the tab
     <div className="flex flex-col h-full bg-white relative min-h-0">
-      {/* Floating Info Badge - Cleaner Header */}
+      {/* Floating Info Badge */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
         <div className="bg-slate-900/5 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
           <Sparkles className="w-3 h-3 text-blue-600" />
@@ -225,7 +222,7 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
               </div>
           </div>
         )}
-        {/* CHANGED: Removed the empty div reference, as we now scroll the container */}
+        {/* FIXED: Removed div ref={messagesEndRef} since we scroll the container now */}
       </div>
 
       {/* Input */}
