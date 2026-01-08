@@ -100,16 +100,17 @@ export async function POST(request: NextRequest) {
         }
     }
 
-    // 5. Initialize Gemini 1.5 Pro
+    // 5. Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-pro-latest',
-        systemInstruction: SYSTEM_PROMPT
-    });
 
-    let prompt = `[${mode.toUpperCase()} TASK]\n${text}`;
+    // Use gemini-pro-vision for images, gemini-pro for text
+    const modelName = imageBase64 ? 'gemini-pro-vision' : 'gemini-pro';
+    const model = genAI.getGenerativeModel({ model: modelName });
+
+    // Include system prompt in the user prompt since systemInstruction may not be supported
+    let prompt = `${SYSTEM_PROMPT}\n\n[${mode.toUpperCase()} TASK]\n${text}`;
     if (augmentedContext) prompt += `\n\nCONTEXT FROM SYSTEM:\n${augmentedContext}`;
-    
+
     let result;
     try {
         if (imageBase64) {
