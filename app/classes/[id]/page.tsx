@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { 
   ArrowLeft, 
   BookOpen, 
@@ -35,10 +36,21 @@ export default function ClassDetailsPage() {
   
   const [classData, setClassData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('chat');
   
-  // PERFORMANCE: Only load background tabs after the page has painted
-  const [isReady, setIsReady] = useState(false);
+  // OPTIMIZATION: Track which tabs have been visited
+  // We only render a tab's content if it's in this set.
+  // Once visited, it stays here, keeping its state/scroll alive.
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['chat']));
+  const [activeTab, setActiveTab] = useState('chat');
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setVisitedTabs((prev) => {
+      const newSet = new Set(prev);
+      newSet.add(value);
+      return newSet;
+    });
+  };
 
   // Grading State
   const [essayText, setEssayText] = useState('');
@@ -65,12 +77,6 @@ export default function ClassDetailsPage() {
 
     fetchClass();
   }, [params.id, router]);
-
-  // OPTIMIZATION: Delay rendering of heavy tabs by 500ms to unblock navigation
-  useEffect(() => {
-    const timer = setTimeout(() => setIsReady(true), 500);
-    return () => clearTimeout(timer);
-  }, []);
 
   const handleGradeEssay = async () => {
     if (!essayText.trim() || !user) return;
@@ -135,8 +141,8 @@ export default function ClassDetailsPage() {
         </div>
       </header>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-        <div className="px-4 md:px-6 py-2 bg-white border-b border-slate-200 shrink-0 overflow-x-auto">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
+        <div className="px-4 md:px-6 py-2 bg-white border-b border-slate-200 shrink-0 overflow-x-auto z-20 relative shadow-sm">
           <TabsList className="bg-slate-100 p-1 w-full sm:w-auto grid grid-cols-5 sm:flex rounded-lg min-w-[320px]">
             <TabsTrigger value="chat" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-xs md:text-sm px-3">
                 <MessageSquare className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Chat</span>
@@ -158,23 +164,26 @@ export default function ClassDetailsPage() {
 
         <div className="flex-1 overflow-hidden relative bg-slate-50/50">
           
-          {/* Chat Tab - Always loaded first for speed */}
+          {/* STRATEGY:
+            1. forceMount={true} -> Keeps the DOM element alive (preserves scroll).
+            2. visitedTabs.has() -> Only renders the heavy React component inside if you've clicked it.
+            3. cn(..., hidden) -> Toggles visibility instantly using CSS.
+          */}
+
           <TabsContent 
             value="chat" 
             forceMount={true} 
-            className="h-full m-0 data-[state=active]:flex flex-col data-[state=inactive]:hidden"
+            className={cn("h-full m-0 flex-col", activeTab === "chat" ? "flex" : "hidden")}
           >
              <ClassChatInterface classId={classData.id} className={classData.name} />
           </TabsContent>
 
-          {/* BACKGROUND TABS: Wrapped in (active || isReady) to delay initial render */}
-          
           <TabsContent 
             value="notes" 
             forceMount={true} 
-            className="h-full m-0 p-4 md:p-6 overflow-y-auto data-[state=inactive]:hidden"
+            className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "notes" ? "block" : "hidden")}
           >
-            {(activeTab === 'notes' || isReady) && (
+            {visitedTabs.has('notes') && (
               <div className="max-w-6xl mx-auto">
                 <NotesTab classId={classData.id} userId={user?.id || ''} />
               </div>
@@ -184,9 +193,9 @@ export default function ClassDetailsPage() {
           <TabsContent 
             value="materials" 
             forceMount={true} 
-            className="h-full m-0 p-4 md:p-6 overflow-y-auto data-[state=inactive]:hidden"
+            className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "materials" ? "block" : "hidden")}
           >
-            {(activeTab === 'materials' || isReady) && (
+            {visitedTabs.has('materials') && (
               <div className="max-w-6xl mx-auto">
                 <MaterialsTab classId={classData.id} userId={user?.id || ''} />
               </div>
@@ -196,9 +205,9 @@ export default function ClassDetailsPage() {
           <TabsContent 
             value="assignments" 
             forceMount={true} 
-            className="h-full m-0 p-4 md:p-6 overflow-y-auto data-[state=inactive]:hidden"
+            className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "assignments" ? "block" : "hidden")}
           >
-            {(activeTab === 'assignments' || isReady) && (
+            {visitedTabs.has('assignments') && (
               <div className="max-w-5xl mx-auto">
                 <AssignmentsTab classId={classData.id} userId={user?.id || ''} />
               </div>
@@ -208,9 +217,9 @@ export default function ClassDetailsPage() {
           <TabsContent 
             value="grader" 
             forceMount={true} 
-            className="h-full m-0 p-4 md:p-6 overflow-y-auto data-[state=inactive]:hidden"
+            className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "grader" ? "block" : "hidden")}
           >
-             {(activeTab === 'grader' || isReady) && (
+             {visitedTabs.has('grader') && (
                <div className="max-w-5xl mx-auto h-full flex flex-col">
                   <div className="mb-6">
                     <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
