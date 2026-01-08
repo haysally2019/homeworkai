@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Camera, Send, Loader2, Sparkles, Bot, User, Paperclip } from 'lucide-react';
+import { Camera, Send, Loader2, Sparkles, Bot, Paperclip } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { toast } from 'sonner';
 
@@ -20,7 +20,7 @@ interface ClassChatInterfaceProps {
 }
 
 export function ClassChatInterface({ classId, className }: ClassChatInterfaceProps) {
-  const { user, refreshCredits, loading: authLoading } = useAuth();
+  const { user, refreshCredits, credits, isPro } = useAuth(); // Added credits & isPro
   const supabase = createClient();
   
   const [messages, setMessages] = useState<Message[]>([]);
@@ -30,7 +30,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
   const [showPaywall, setShowPaywall] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
 
-  // FIXED: Ref is now attached to the scrollable container, not a div at the bottom
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -65,8 +64,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
     loadConversation();
   }, [user, classId, className]);
 
-  // FIXED: Use scrollTop on the container instead of scrollIntoView
-  // This prevents the entire browser window from jumping up
   useEffect(() => { 
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current;
@@ -95,6 +92,12 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
     e.preventDefault();
     if (!input.trim() && !selectedImage) return;
     if (!user) return;
+
+    // LOGIC: Check credits BEFORE sending request
+    if (!isPro && credits <= 0) {
+      setShowPaywall(true);
+      return;
+    }
 
     const userMsg: Message = { role: 'user', content: input, image: selectedImage || undefined };
     setMessages(prev => [...prev, userMsg]);
@@ -143,6 +146,7 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
         }),
       });
 
+      // Keep server-side check as a fallback
       if (res.status === 402) { setShowPaywall(true); setLoading(false); return; }
 
       const data = await res.json();
@@ -166,9 +170,7 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
   };
 
   return (
-    // FIXED: Added min-h-0 to ensure proper flex behavior inside the tab
     <div className="flex flex-col h-full bg-white relative min-h-0">
-      {/* Floating Info Badge */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
         <div className="bg-slate-900/5 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
           <Sparkles className="w-3 h-3 text-blue-600" />
@@ -176,20 +178,14 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
         </div>
       </div>
 
-      {/* Messages */}
-      <div 
-        ref={scrollAreaRef}
-        className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]"
-      >
+      <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
             <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-sm">
               <Bot className="w-8 h-8 text-blue-600" />
             </div>
             <h3 className="text-xl font-bold text-slate-900">Class AI Assistant</h3>
-            <p className="text-slate-500 max-w-xs mt-2">
-              I have access to all your notes and documents for {className}. Ask me anything!
-            </p>
+            <p className="text-slate-500 max-w-xs mt-2">I have access to all your notes and documents for {className}. Ask me anything!</p>
           </div>
         )}
         
@@ -201,9 +197,7 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
               </div>
             )}
             <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-4 shadow-sm text-sm md:text-base leading-relaxed ${
-              m.role === 'user' 
-                ? 'bg-blue-600 text-white rounded-br-sm' 
-                : 'bg-white text-slate-800 border border-slate-100 rounded-bl-sm'
+              m.role === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-sm'
             }`}>
               {m.image && <img src={m.image} alt="Upload" className="rounded-lg mb-3 max-h-60 object-cover bg-black/5" />}
               <MessageRenderer content={m.content} role={m.role} />
@@ -222,10 +216,8 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
               </div>
           </div>
         )}
-        {/* FIXED: Removed div ref={messagesEndRef} since we scroll the container now */}
       </div>
 
-      {/* Input */}
       <div className="p-4 md:p-6 bg-white border-t border-slate-100">
         <div className="max-w-4xl mx-auto">
           <Suspense fallback={null}><MathToolbar onInsert={handleInsertLatex} /></Suspense>
