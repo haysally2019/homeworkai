@@ -1,6 +1,5 @@
 'use client';
 
-// ... imports remain the same ...
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
@@ -22,7 +21,6 @@ interface ClassChatInterfaceProps {
 }
 
 export function ClassChatInterface({ classId, className }: ClassChatInterfaceProps) {
-  // ... existing state and logic ... (keep all the logic the same as before)
   const { user, refreshCredits, loading: authLoading } = useAuth();
   const supabase = createClient();
   
@@ -33,7 +31,8 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
   const [showPaywall, setShowPaywall] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // CHANGED: Use a ref for the scroll container instead of a dummy div at the end
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -67,8 +66,15 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
     loadConversation();
   }, [user, classId, className]);
 
+  // CHANGED: Improved scrolling logic to prevent parent layout shifts
   useEffect(() => { 
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current;
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   }, [messages]);
 
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,7 +169,8 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
   };
 
   return (
-    <div className="flex flex-col h-full bg-white relative">
+    // CHANGED: Added min-h-0 to prevent flexbox overflow issues
+    <div className="flex flex-col h-full bg-white relative min-h-0">
       {/* Floating Info Badge - Cleaner Header */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
         <div className="bg-slate-900/5 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
@@ -173,7 +180,10 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
+      <div 
+        ref={scrollAreaRef}
+        className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]"
+      >
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
             <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-sm">
@@ -215,7 +225,7 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
               </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
+        {/* CHANGED: Removed the empty div reference, as we now scroll the container */}
       </div>
 
       {/* Input */}
