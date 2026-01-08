@@ -23,92 +23,50 @@ FORMATTING:
 
 export async function POST(request: NextRequest) {
   try {
+    const { text, imageBase64, mode, userId, context } = await request.json();
     const { text, imageBase64, mode, userId, context, classId } = await request.json();
 
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-
-    // 1. Fetch User Credits & Reset Date
-    let { data: userCredits } = await supabase
-      .from('users_credits')
-      .select('credits, is_pro, last_reset_date') // Fetch date
-      .eq('id', userId)
-      .maybeSingle();
-
-    // Handle missing row (first time user)
-    if (!userCredits) {
-      const { data: newCredits } = await supabase
-        .from('users_credits')
-        .insert({ 
-            id: userId, 
-            credits: 5, 
-            is_pro: false,
-            last_reset_date: new Date().toISOString().split('T')[0] // Set today
-        })
-        .select()
-        .single();
-      userCredits = newCredits;
-    }
-
-    if (!userCredits) {
-      return NextResponse.json({ error: 'Failed to load user credits' }, { status: 500 });
-    }
-
-    // 2. CHECK FOR DAILY RESET
-    const today = new Date().toISOString().split('T')[0];
-    
-    // If the last reset was NOT today, reset credits to 5
-    if (!userCredits.is_pro && userCredits.last_reset_date !== today) {
-        await supabase
-            .from('users_credits')
-            .update({ 
-                credits: 5, 
-                last_reset_date: today 
-            })
-            .eq('id', userId);
-            
-        // Update local object so the check below passes
-        userCredits.credits = 5;
-    }
-
-    // 3. Check if they have credits NOW
-    if (!userCredits.is_pro && userCredits.credits < 1) {
+@@ -57,39 +57,58 @@
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
 
-    // 4. FETCH LIVE NOTES & CONTEXT (RAG)
+    // 2. Initialize Gemini
+    // 2. FETCH LIVE NOTES & CONTEXT (RAG)
     let augmentedContext = context || '';
     
     if (classId) {
+        // Fetch recent notes for this class
         const { data: notes } = await supabase
             .from('class_notes')
             .select('title, formatted_notes')
             .eq('class_id', classId)
             .order('created_at', { ascending: false })
-            .limit(3);
+            .limit(3); // Fetch last 3 notes to keep context relevant but concise
 
         if (notes && notes.length > 0) {
             const notesText = notes.map(n => `[Note: ${n.title}]\n${n.formatted_notes}`).join('\n\n');
             augmentedContext += `\n\n[HIDDEN CONTEXT - LIVE NOTES]:\nUse the following notes from the student's class to inform your answer. Prioritize this information:\n${notesText}`;
         }
+        
+        // (Optional) If you had document chunks, you would fetch them here using pgvector
     }
 
-    // 5. Initialize Gemini
+    // 3. Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
-    
+
+    // Using experimental flash model for speed and accuracy
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash-exp', 
+      model: 'gemini-2.0-flash-exp', // 2.0 Flash has huge context window, perfect for stuffing notes
       systemInstruction: SYSTEM_PROMPT,
     });
 
     let prompt = `[${mode.toUpperCase()} TASK]\n${text}`;
+    if (context) prompt += `\n\nCONTEXT FROM ASSIGNMENT:\n${context}`;
     if (augmentedContext) prompt += `\n\nCONTEXT FROM SYSTEM (Student cannot see this):\n${augmentedContext}`;
-    
+
     let result;
     if (imageBase64) {
       const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
@@ -119,7 +77,6 @@ export async function POST(request: NextRequest) {
 
     const responseText = await result.response.text();
 
-    // 6. Deduct Credit (if not Pro)
     if (!userCredits.is_pro) {
       await supabase.from('users_credits').update({ credits: userCredits.credits - 1 }).eq('id', userId);
     }
@@ -134,4 +91,3 @@ export async function POST(request: NextRequest) {
     console.error('API Error:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
-}
