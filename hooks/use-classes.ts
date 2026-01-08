@@ -1,7 +1,6 @@
 import useSWR, { mutate } from 'swr';
 import { createClient } from '@/lib/supabase/client';
 
-// Helper to keep client consistent
 const supabase = createClient();
 
 async function fetchClasses(userId: string) {
@@ -31,7 +30,7 @@ export function useClasses(userId: string | undefined) {
     userId ? ['classes', userId] : null,
     ([_, id]) => fetchClasses(id),
     {
-      revalidateOnFocus: false, // <--- THIS STOPS THE FREEZING
+      revalidateOnFocus: false, // <--- PREVENTS FREEZING
       revalidateOnReconnect: false,
       dedupingInterval: 60000, 
     }
@@ -50,7 +49,7 @@ export function useDocuments(classId: string | undefined) {
     classId ? ['documents', classId] : null,
     ([_, id]) => fetchDocuments(id),
     {
-      revalidateOnFocus: false, // <--- THIS STOPS THE FREEZING
+      revalidateOnFocus: false, // <--- PREVENTS FREEZING
       dedupingInterval: 10000,
     }
   );
@@ -63,9 +62,7 @@ export function useDocuments(classId: string | undefined) {
   };
 }
 
-// ... (Keep the rest of your createClass/deleteClass functions below exactly as they were)
 export async function createClass(userId: string, classData: { name: string; code: string; color: string; semester: string }) {
-  // Check limit for free users first
   const { data: userCredits } = await supabase
     .from('users_credits')
     .select('is_pro')
@@ -94,8 +91,7 @@ export async function createClass(userId: string, classData: { name: string; cod
 }
 
 export async function deleteClass(userId: string, classId: string) {
-  // Delete storage folder
-  const { error: storageError } = await supabase.storage.from('class-documents').remove([`${userId}/${classId}`]);
+  await supabase.storage.from('class-documents').remove([`${userId}/${classId}`]);
   
   const { error } = await supabase
     .from('classes')
