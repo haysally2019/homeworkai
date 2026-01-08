@@ -1,9 +1,8 @@
 import useSWR, { mutate } from 'swr';
 import { createClient } from '@/lib/supabase/client';
 
-const supabase = createClient();
-
 async function fetchClasses(userId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('classes')
     .select('*')
@@ -14,9 +13,46 @@ async function fetchClasses(userId: string) {
   return data;
 }
 
+async function fetchClassById(classId: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('classes')
+    .select('*')
+    .eq('id', classId)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function fetchAssignments(classId: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('assignments')
+    .select('*')
+    .eq('class_id', classId)
+    .order('due_date', { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
 async function fetchDocuments(classId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('class_documents')
+    .select('id, filename, file_path, upload_date, processing_status, file_size')
+    .eq('class_id', classId)
+    .order('upload_date', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+async function fetchNotes(classId: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('class_notes')
     .select('*')
     .eq('class_id', classId)
     .order('created_at', { ascending: false });
@@ -26,13 +62,12 @@ async function fetchDocuments(classId: string) {
 }
 
 export function useClasses(userId: string | undefined) {
-  const { data, error, isLoading, mutate } = useSWR(
+  const { data, error, isLoading, mutate: mutateClasses } = useSWR(
     userId ? ['classes', userId] : null,
-    ([_, id]) => fetchClasses(id),
+    ([_, uid]) => fetchClasses(uid),
     {
-      revalidateOnFocus: false, // <--- PREVENTS FREEZING
-      revalidateOnReconnect: false,
-      dedupingInterval: 60000, 
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
     }
   );
 
@@ -40,80 +75,207 @@ export function useClasses(userId: string | undefined) {
     classes: data,
     isLoading,
     isError: error,
-    mutate,
+    mutate: mutateClasses,
   };
 }
 
-export function useDocuments(classId: string | undefined) {
-  const { data, error, isLoading, mutate } = useSWR(
-    classId ? ['documents', classId] : null,
-    ([_, id]) => fetchDocuments(id),
+export function useClass(classId: string | undefined) {
+  const { data, error, isLoading, mutate: mutateClass } = useSWR(
+    classId ? ['class', classId] : null,
+    ([_, id]) => fetchClassById(id),
     {
-      revalidateOnFocus: false, // <--- PREVENTS FREEZING
-      dedupingInterval: 10000,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
     }
   );
 
   return {
-    documents: data,
+    classData: data,
     isLoading,
     isError: error,
-    mutate,
+    mutate: mutateClass,
   };
 }
 
-export async function createClass(userId: string, classData: { name: string; code: string; color: string; semester: string }) {
+export function useAssignments(classId: string | undefined) {
+  const { data, error, isLoading, mutate: mutateAssignments } = useSWR(
+    classId ? ['assignments', classId] : null,
+    ([_, id]) => fetchAssignments(id),
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    }
+  );
+
+  return {
+    assignments: data || [],
+    isLoading,
+    isError: error,
+    mutate: mutateAssignments,
+  };
+}
+
+export function useDocuments(classId: string | undefined) {
+  const { data, error, isLoading, mutate: mutateDocuments } = useSWR(
+    classId ? ['documents', classId] : null,
+    ([_, id]) => fetchDocuments(id),
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    }
+  );
+
+  return {
+    documents: data || [],
+    isLoading,
+    isError: error,
+    mutate: mutateDocuments,
+  };
+}
+
+export function useNotes(classId: string | undefined) {
+  const { data, error, isLoading, mutate: mutateNotes } = useSWR(
+    classId ? ['notes', classId] : null,
+    ([_, id]) => fetchNotes(id),
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    }
+  );
+
+  return {
+    notes: data || [],
+    isLoading,
+    isError: error,
+    mutate: mutateNotes,
+  };
+}
+
+export async function createClass(userId: string, classData: any) {
+  const supabase = createClient();
   const { data: userCredits } = await supabase
     .from('users_credits')
     .select('is_pro')
     .eq('id', userId)
-    .single();
+    .maybeSingle() as { data: { is_pro: boolean } | null };
 
   if (!userCredits?.is_pro) {
-    const { count } = await supabase
+    const { data: existingClasses } = await supabase
       .from('classes')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('user_id', userId);
-      
-    if (count && count >= 1) {
-      throw new Error("Free users can only create 1 class. Upgrade to Pro for unlimited classes.");
+
+    if (existingClasses && existingClasses.length >= 1) {
+      throw new Error('Free users can only create 1 class. Upgrade to Pro for unlimited classes.');
     }
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('classes')
     .insert([{ ...classData, user_id: userId }])
     .select()
     .single();
 
   if (error) throw error;
+
+  mutate(['classes', userId]);
+  return data;
+}
+
+export async function updateClass(classId: string, updates: any) {
+  const supabase = createClient();
+  const { data, error } = await (supabase as any)
+    .from('classes')
+    .update(updates)
+    .eq('id', classId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  mutate(['class', classId]);
   return data;
 }
 
 export async function deleteClass(userId: string, classId: string) {
-  await supabase.storage.from('class-documents').remove([`${userId}/${classId}`]);
-  
-  const { error } = await supabase
+  const supabase = createClient();
+  const { error } = await (supabase as any)
     .from('classes')
     .delete()
     .eq('id', classId);
 
   if (error) throw error;
-  return true;
+
+  mutate(['classes', userId]);
+}
+
+export async function createAssignment(classId: string, assignmentData: any) {
+  const supabase = createClient();
+  const { data, error } = await (supabase as any)
+    .from('assignments')
+    .insert([{ ...assignmentData, class_id: classId }])
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  mutate(['assignments', classId]);
+  return data;
+}
+
+export async function updateAssignment(classId: string, assignmentId: string, updates: any) {
+  const supabase = createClient();
+  const { data, error } = await (supabase as any)
+    .from('assignments')
+    .update(updates)
+    .eq('id', assignmentId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  mutate(['assignments', classId]);
+  return data;
+}
+
+export async function deleteAssignment(classId: string, assignmentId: string) {
+  const supabase = createClient();
+  const { error } = await (supabase as any)
+    .from('assignments')
+    .delete()
+    .eq('id', assignmentId);
+
+  if (error) throw error;
+
+  mutate(['assignments', classId]);
 }
 
 export async function deleteDocument(classId: string, documentId: string, filePath: string) {
+  const supabase = createClient();
   const { error: storageError } = await supabase.storage
     .from('class-documents')
     .remove([filePath]);
 
-  if (storageError) console.error('Storage delete error:', storageError);
+  if (storageError) throw storageError;
 
-  const { error } = await supabase
+  const { error: dbError } = await (supabase as any)
     .from('class_documents')
     .delete()
     .eq('id', documentId);
 
+  if (dbError) throw dbError;
+
+  mutate(['documents', classId]);
+}
+
+export async function deleteNote(classId: string, noteId: string) {
+  const supabase = createClient();
+  const { error } = await (supabase as any)
+    .from('class_notes')
+    .delete()
+    .eq('id', noteId);
+
   if (error) throw error;
-  return true;
+
+  mutate(['notes', classId]);
 }
