@@ -31,7 +31,7 @@ export default function ClassDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const supabase = createClient();
-  const { user, refreshCredits } = useAuth();
+  const { user, refreshCredits, credits, isPro } = useAuth(); // Added credits & isPro
   
   const [classData, setClassData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +65,13 @@ export default function ClassDetailsPage() {
 
   const handleGradeEssay = async () => {
     if (!essayText.trim() || !user) return;
+
+    // LOGIC: Check credits BEFORE sending request
+    if (!isPro && credits <= 0) {
+      setShowPaywall(true);
+      return;
+    }
+
     setIsGrading(true);
     setGradingResult(null);
 
@@ -105,7 +112,6 @@ export default function ClassDetailsPage() {
 
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 shrink-0 z-10 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => router.push('/classes')} className="hover:bg-slate-100 rounded-full">
@@ -121,7 +127,6 @@ export default function ClassDetailsPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <div className="px-4 md:px-6 py-2 bg-white border-b border-slate-200 shrink-0 overflow-x-auto">
           <TabsList className="bg-slate-100 p-1 w-full sm:w-auto grid grid-cols-5 sm:flex rounded-lg min-w-[320px]">
@@ -144,9 +149,6 @@ export default function ClassDetailsPage() {
         </div>
 
         <div className="flex-1 overflow-hidden relative bg-slate-50/50">
-          {/* FIXED: Added forceMount={true} and hidden classes to all tabs */}
-          {/* This keeps components alive in the background (preventing lag) but hides them visually */}
-          
           <TabsContent 
             value="chat" 
             forceMount={true} 
