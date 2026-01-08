@@ -46,11 +46,13 @@ export default function CalendarPage() {
   }, [user]);
 
   const fetchAssignments = async () => {
+    if (!user) return;
+
     try {
       const { data, error } = await supabase
         .from('assignments')
         .select(`*, classes(name, color)`)
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('due_date', { ascending: true });
 
       if (error) throw error;
@@ -64,7 +66,7 @@ export default function CalendarPage() {
 
   const toggleComplete = async (id: string, currentStatus: boolean) => {
     setAssignments(prev => prev.map(a => a.id === id ? { ...a, completed: !currentStatus } : a));
-    const { error } = await supabase.from('assignments').update({ completed: !currentStatus }).eq('id', id);
+    const { error } = await (supabase as any).from('assignments').update({ completed: !currentStatus }).eq('id', id);
     if (error) { toast.error('Update failed'); fetchAssignments(); }
   };
 
