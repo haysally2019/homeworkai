@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
 
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     // 1. Fetch User Credits & Reset Date
     let { data: userCredits } = await supabase
       .from('users_credits')
-      .select('credits, is_pro, last_reset_date') // Fetch date
+      .select('credits, is_pro, last_reset_date')
       .eq('id', userId)
       .maybeSingle();
 
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
             id: userId, 
             credits: 5, 
             is_pro: false,
-            last_reset_date: new Date().toISOString().split('T')[0] // Set today
+            last_reset_date: new Date().toISOString().split('T')[0]
         })
         .select()
         .single();
@@ -62,7 +63,6 @@ export async function POST(request: NextRequest) {
     // 2. CHECK FOR DAILY RESET
     const today = new Date().toISOString().split('T')[0];
     
-    // If the last reset was NOT today, reset credits to 5
     if (!userCredits.is_pro && userCredits.last_reset_date !== today) {
         await supabase
             .from('users_credits')
@@ -71,8 +71,6 @@ export async function POST(request: NextRequest) {
                 last_reset_date: today 
             })
             .eq('id', userId);
-            
-        // Update local object so the check below passes
         userCredits.credits = 5;
     }
 
@@ -101,8 +99,9 @@ export async function POST(request: NextRequest) {
     // 5. Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
     
+    // SWITCHED TO GEMINI 1.5 PRO - The strongest stable model
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-1.5-pro',
       systemInstruction: SYSTEM_PROMPT,
     });
 
