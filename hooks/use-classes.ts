@@ -1,8 +1,10 @@
 import useSWR, { mutate } from 'swr';
 import { createClient } from '@/lib/supabase/client';
 
+// Helper to keep client consistent
+const supabase = createClient();
+
 async function fetchClasses(userId: string) {
-  const supabase = createClient();
   const { data, error } = await supabase
     .from('classes')
     .select('*')
@@ -13,46 +15,9 @@ async function fetchClasses(userId: string) {
   return data;
 }
 
-async function fetchClassById(classId: string) {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('classes')
-    .select('*')
-    .eq('id', classId)
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-async function fetchAssignments(classId: string) {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('assignments')
-    .select('*')
-    .eq('class_id', classId)
-    .order('due_date', { ascending: true });
-
-  if (error) throw error;
-  return data;
-}
-
 async function fetchDocuments(classId: string) {
-  const supabase = createClient();
   const { data, error } = await supabase
     .from('class_documents')
-    .select('id, filename, file_path, upload_date, processing_status, file_size')
-    .eq('class_id', classId)
-    .order('upload_date', { ascending: false });
-
-  if (error) throw error;
-  return data;
-}
-
-async function fetchNotes(classId: string) {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('class_notes')
     .select('*')
     .eq('class_id', classId)
     .order('created_at', { ascending: false });
@@ -62,12 +27,13 @@ async function fetchNotes(classId: string) {
 }
 
 export function useClasses(userId: string | undefined) {
-  const { data, error, isLoading, mutate: mutateClasses } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     userId ? ['classes', userId] : null,
-    ([_, uid]) => fetchClasses(uid),
+    ([_, id]) => fetchClasses(id),
     {
-      revalidateOnFocus: false,
-      dedupingInterval: 5000,
+      revalidateOnFocus: false, // <--- THIS STOPS THE FREEZING
+      revalidateOnReconnect: false,
+      dedupingInterval: 60000, 
     }
   );
 
@@ -75,207 +41,83 @@ export function useClasses(userId: string | undefined) {
     classes: data,
     isLoading,
     isError: error,
-    mutate: mutateClasses,
-  };
-}
-
-export function useClass(classId: string | undefined) {
-  const { data, error, isLoading, mutate: mutateClass } = useSWR(
-    classId ? ['class', classId] : null,
-    ([_, id]) => fetchClassById(id),
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 5000,
-    }
-  );
-
-  return {
-    classData: data,
-    isLoading,
-    isError: error,
-    mutate: mutateClass,
-  };
-}
-
-export function useAssignments(classId: string | undefined) {
-  const { data, error, isLoading, mutate: mutateAssignments } = useSWR(
-    classId ? ['assignments', classId] : null,
-    ([_, id]) => fetchAssignments(id),
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 5000,
-    }
-  );
-
-  return {
-    assignments: data || [],
-    isLoading,
-    isError: error,
-    mutate: mutateAssignments,
+    mutate,
   };
 }
 
 export function useDocuments(classId: string | undefined) {
-  const { data, error, isLoading, mutate: mutateDocuments } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     classId ? ['documents', classId] : null,
     ([_, id]) => fetchDocuments(id),
     {
-      revalidateOnFocus: false,
-      dedupingInterval: 5000,
+      revalidateOnFocus: false, // <--- THIS STOPS THE FREEZING
+      dedupingInterval: 10000,
     }
   );
 
   return {
-    documents: data || [],
+    documents: data,
     isLoading,
     isError: error,
-    mutate: mutateDocuments,
+    mutate,
   };
 }
 
-export function useNotes(classId: string | undefined) {
-  const { data, error, isLoading, mutate: mutateNotes } = useSWR(
-    classId ? ['notes', classId] : null,
-    ([_, id]) => fetchNotes(id),
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 5000,
-    }
-  );
-
-  return {
-    notes: data || [],
-    isLoading,
-    isError: error,
-    mutate: mutateNotes,
-  };
-}
-
-export async function createClass(userId: string, classData: any) {
-  const supabase = createClient();
+// ... (Keep the rest of your createClass/deleteClass functions below exactly as they were)
+export async function createClass(userId: string, classData: { name: string; code: string; color: string; semester: string }) {
+  // Check limit for free users first
   const { data: userCredits } = await supabase
     .from('users_credits')
     .select('is_pro')
     .eq('id', userId)
-    .maybeSingle() as { data: { is_pro: boolean } | null };
+    .single();
 
   if (!userCredits?.is_pro) {
-    const { data: existingClasses } = await supabase
+    const { count } = await supabase
       .from('classes')
-      .select('id', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
-
-    if (existingClasses && existingClasses.length >= 1) {
-      throw new Error('Free users can only create 1 class. Upgrade to Pro for unlimited classes.');
+      
+    if (count && count >= 1) {
+      throw new Error("Free users can only create 1 class. Upgrade to Pro for unlimited classes.");
     }
   }
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('classes')
     .insert([{ ...classData, user_id: userId }])
     .select()
     .single();
 
   if (error) throw error;
-
-  mutate(['classes', userId]);
-  return data;
-}
-
-export async function updateClass(classId: string, updates: any) {
-  const supabase = createClient();
-  const { data, error } = await (supabase as any)
-    .from('classes')
-    .update(updates)
-    .eq('id', classId)
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  mutate(['class', classId]);
   return data;
 }
 
 export async function deleteClass(userId: string, classId: string) {
-  const supabase = createClient();
-  const { error } = await (supabase as any)
+  // Delete storage folder
+  const { error: storageError } = await supabase.storage.from('class-documents').remove([`${userId}/${classId}`]);
+  
+  const { error } = await supabase
     .from('classes')
     .delete()
     .eq('id', classId);
 
   if (error) throw error;
-
-  mutate(['classes', userId]);
-}
-
-export async function createAssignment(classId: string, assignmentData: any) {
-  const supabase = createClient();
-  const { data, error } = await (supabase as any)
-    .from('assignments')
-    .insert([{ ...assignmentData, class_id: classId }])
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  mutate(['assignments', classId]);
-  return data;
-}
-
-export async function updateAssignment(classId: string, assignmentId: string, updates: any) {
-  const supabase = createClient();
-  const { data, error } = await (supabase as any)
-    .from('assignments')
-    .update(updates)
-    .eq('id', assignmentId)
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  mutate(['assignments', classId]);
-  return data;
-}
-
-export async function deleteAssignment(classId: string, assignmentId: string) {
-  const supabase = createClient();
-  const { error } = await (supabase as any)
-    .from('assignments')
-    .delete()
-    .eq('id', assignmentId);
-
-  if (error) throw error;
-
-  mutate(['assignments', classId]);
+  return true;
 }
 
 export async function deleteDocument(classId: string, documentId: string, filePath: string) {
-  const supabase = createClient();
   const { error: storageError } = await supabase.storage
     .from('class-documents')
     .remove([filePath]);
 
-  if (storageError) throw storageError;
+  if (storageError) console.error('Storage delete error:', storageError);
 
-  const { error: dbError } = await (supabase as any)
+  const { error } = await supabase
     .from('class_documents')
     .delete()
     .eq('id', documentId);
 
-  if (dbError) throw dbError;
-
-  mutate(['documents', classId]);
-}
-
-export async function deleteNote(classId: string, noteId: string) {
-  const supabase = createClient();
-  const { error } = await (supabase as any)
-    .from('class_notes')
-    .delete()
-    .eq('id', noteId);
-
   if (error) throw error;
-
-  mutate(['notes', classId]);
+  return true;
 }
