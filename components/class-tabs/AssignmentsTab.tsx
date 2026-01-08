@@ -52,7 +52,7 @@ export function AssignmentsTab({ classId, userId }: { classId: string, userId: s
     setIsSubmitting(true);
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('assignments')
         .insert({
           title: newTitle,
@@ -83,7 +83,7 @@ export function AssignmentsTab({ classId, userId }: { classId: string, userId: s
     // Optimistic update
     setAssignments(prev => prev.map(a => a.id === id ? { ...a, completed: !currentStatus } : a));
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('assignments')
       .update({ completed: !currentStatus })
       .eq('id', id);
@@ -97,7 +97,7 @@ export function AssignmentsTab({ classId, userId }: { classId: string, userId: s
   const deleteAssignment = async (id: string) => {
     if (!confirm('Are you sure?')) return;
     setAssignments(prev => prev.filter(a => a.id !== id));
-    await supabase.from('assignments').delete().eq('id', id);
+    await (supabase as any).from('assignments').delete().eq('id', id);
     toast.success('Assignment deleted');
   };
 

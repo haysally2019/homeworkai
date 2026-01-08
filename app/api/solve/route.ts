@@ -102,9 +102,9 @@ export async function POST(request: NextRequest) {
 
     // 5. Initialize Gemini 1.5 Pro
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ 
-        model: 'gemini-1.5-pro',
-        systemInstruction: SYSTEM_PROMPT 
+    const model = genAI.getGenerativeModel({
+        model: 'gemini-1.5-pro-latest',
+        systemInstruction: SYSTEM_PROMPT
     });
 
     let prompt = `[${mode.toUpperCase()} TASK]\n${text}`;
