@@ -17,16 +17,28 @@ import {
   CheckCircle2,
   PenTool 
 } from 'lucide-react';
-import { MaterialsTab } from '@/components/class-tabs/MaterialsTab';
-import { NotesTab } from '@/components/class-tabs/NotesTab';
-import { AssignmentsTab } from '@/components/class-tabs/AssignmentsTab';
 import { ClassChatInterface } from '@/components/ClassChatInterface';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { useAuth } from '@/lib/auth-context';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
+// OPTIMIZATION: Lazy load heavy components to unblock the main thread
+// This ensures the tab clicks are instant, showing a spinner while the content loads.
+const MaterialsTab = lazy(() => import('@/components/class-tabs/MaterialsTab').then(mod => ({ default: mod.MaterialsTab })));
+const NotesTab = lazy(() => import('@/components/class-tabs/NotesTab').then(mod => ({ default: mod.NotesTab })));
+const AssignmentsTab = lazy(() => import('@/components/class-tabs/AssignmentsTab').then(mod => ({ default: mod.AssignmentsTab })));
 const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
+
+// Helper for the loading state
+const TabLoading = () => (
+  <div className="flex h-64 items-center justify-center text-slate-400">
+    <div className="flex flex-col items-center gap-2">
+      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <p className="text-sm font-medium">Loading content...</p>
+    </div>
+  </div>
+);
 
 export default function ClassDetailsPage() {
   const params = useParams();
@@ -37,14 +49,13 @@ export default function ClassDetailsPage() {
   const [classData, setClassData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // OPTIMIZATION: Track which tabs have been visited
-  // We only render a tab's content if it's in this set.
-  // Once visited, it stays here, keeping its state/scroll alive.
+  // State for rendering control
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['chat']));
   const [activeTab, setActiveTab] = useState('chat');
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
+    // Add to visited set immediately to trigger the lazy render
     setVisitedTabs((prev) => {
       const newSet = new Set(prev);
       newSet.add(value);
@@ -164,12 +175,7 @@ export default function ClassDetailsPage() {
 
         <div className="flex-1 overflow-hidden relative bg-slate-50/50">
           
-          {/* STRATEGY:
-            1. forceMount={true} -> Keeps the DOM element alive (preserves scroll).
-            2. visitedTabs.has() -> Only renders the heavy React component inside if you've clicked it.
-            3. cn(..., hidden) -> Toggles visibility instantly using CSS.
-          */}
-
+          {/* Chat Tab - Loaded immediately */}
           <TabsContent 
             value="chat" 
             forceMount={true} 
@@ -178,6 +184,7 @@ export default function ClassDetailsPage() {
              <ClassChatInterface classId={classData.id} className={classData.name} />
           </TabsContent>
 
+          {/* Notes Tab - Lazy loaded with Suspense */}
           <TabsContent 
             value="notes" 
             forceMount={true} 
@@ -185,11 +192,14 @@ export default function ClassDetailsPage() {
           >
             {visitedTabs.has('notes') && (
               <div className="max-w-6xl mx-auto">
-                <NotesTab classId={classData.id} userId={user?.id || ''} />
+                <Suspense fallback={<TabLoading />}>
+                  <NotesTab classId={classData.id} userId={user?.id || ''} />
+                </Suspense>
               </div>
             )}
           </TabsContent>
 
+          {/* Materials Tab - Lazy loaded with Suspense */}
           <TabsContent 
             value="materials" 
             forceMount={true} 
@@ -197,11 +207,14 @@ export default function ClassDetailsPage() {
           >
             {visitedTabs.has('materials') && (
               <div className="max-w-6xl mx-auto">
-                <MaterialsTab classId={classData.id} userId={user?.id || ''} />
+                <Suspense fallback={<TabLoading />}>
+                  <MaterialsTab classId={classData.id} userId={user?.id || ''} />
+                </Suspense>
               </div>
             )}
           </TabsContent>
 
+          {/* Assignments Tab - Lazy loaded with Suspense */}
           <TabsContent 
             value="assignments" 
             forceMount={true} 
@@ -209,11 +222,14 @@ export default function ClassDetailsPage() {
           >
             {visitedTabs.has('assignments') && (
               <div className="max-w-5xl mx-auto">
-                <AssignmentsTab classId={classData.id} userId={user?.id || ''} />
+                <Suspense fallback={<TabLoading />}>
+                  <AssignmentsTab classId={classData.id} userId={user?.id || ''} />
+                </Suspense>
               </div>
             )}
           </TabsContent>
 
+          {/* Grader Tab - Lightweight, rendered inline */}
           <TabsContent 
             value="grader" 
             forceMount={true} 
