@@ -15,8 +15,7 @@ import {
   Settings,
   Sparkles,
   Flame,
-  BookOpen,
-  Calendar // Added Calendar Icon
+  BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,7 +28,7 @@ export function Sidebar() {
   const [showPaywall, setShowPaywall] = useState(false);
 
   const { user, credits, isPro, currentStreak } = useAuth();
-  const { classes } = useClasses(user?.id);
+  const { classes } = useClasses(user?.id); // Synced with SWR cache
   
   const router = useRouter();
   const pathname = usePathname();
@@ -87,7 +86,6 @@ export function Sidebar() {
           <div className="space-y-1">
             <NavItem href="/dashboard" icon={LayoutDashboard} label="Dashboard" />
             <NavItem href="/classes" icon={BookOpen} label="My Classes" />
-            <NavItem href="/calendar" icon={Calendar} label="Calendar" /> {/* Added Calendar Link */}
             <NavItem href="/chat" icon={MessageSquare} label="AI Chat" />
             <NavItem href="/settings" icon={Settings} label="Settings" />
           </div>
@@ -127,6 +125,19 @@ export function Sidebar() {
                     </button>
                   );
                 })}
+                {(!classes || classes.length === 0) && (
+                  <div className="text-center py-4 border-2 border-dashed border-slate-100 rounded-lg">
+                    <p className="text-xs text-slate-400 mb-2">No classes yet</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={() => router.push('/classes')}
+                    >
+                      Add Class
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -4,18 +4,12 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
-const SYSTEM_PROMPT = `You are ALTUS, an advanced Academic AI Assistant powered by Google Gemini.
+const SYSTEM_PROMPT = `You are ALTUS, an advanced Academic AI Assistant.
 
 CORE PROTOCOLS:
 1. **Solver Mode:** Provide direct, step-by-step solutions with final answers clearly marked. Use LaTeX for math.
 2. **Tutor Mode:** Do not give the answer. Ask guiding questions to help the student solve it.
-3. **Essay Grader Mode:** Analyze the text for thesis strength, argument structure, grammar, and clarity. Provide a Letter Grade (A-F) and 3 specific bullet points for improvement.
-4. **Note Taker Mode:** Output strict, clean Markdown with headers and summaries.
-
-ANTI-HALLUCINATION GUARDRAILS:
-- **Strict Grounding:** Do not invent historical facts, citations, or mathematical principles.
-- **Uncertainty:** If a question is ambiguous or lacks context, ask for clarification instead of guessing.
-- **Math Verification:** Double-check all intermediate calculation steps before outputting the final result.
+3. **Note Taker Mode:** When asked to format notes, ignore conversational fillers. Output strict, clean Markdown with summaries.
 
 FORMATTING:
 - Use LaTeX for math: $$ x^2 $$ or $ x $.
@@ -23,7 +17,7 @@ FORMATTING:
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, imageBase64, mode, userId, context, classId } = await request.json();
+    const { text, imageBase64, mode, userId, context } = await request.json();
 
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -33,23 +27,17 @@ export async function POST(request: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // 1. Fetch User Credits & Reset Date
+    // 1. Check Credits
     let { data: userCredits } = await supabase
       .from('users_credits')
-      .select('credits, is_pro, last_reset_date') // Fetch date
+      .select('credits, is_pro')
       .eq('id', userId)
       .maybeSingle();
 
-    // Handle missing row (first time user)
     if (!userCredits) {
       const { data: newCredits } = await supabase
         .from('users_credits')
-        .insert({ 
-            id: userId, 
-            credits: 5, 
-            is_pro: false,
-            last_reset_date: new Date().toISOString().split('T')[0] // Set today
-        })
+        .insert({ id: userId, credits: 5, is_pro: false })
         .select()
         .single();
       userCredits = newCredits;
@@ -59,55 +47,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load user credits' }, { status: 500 });
     }
 
-    // 2. CHECK FOR DAILY RESET
-    const today = new Date().toISOString().split('T')[0];
-    
-    // If the last reset was NOT today, reset credits to 5
-    if (!userCredits.is_pro && userCredits.last_reset_date !== today) {
-        await supabase
-            .from('users_credits')
-            .update({ 
-                credits: 5, 
-                last_reset_date: today 
-            })
-            .eq('id', userId);
-            
-        // Update local object so the check below passes
-        userCredits.credits = 5;
-    }
-
-    // 3. Check if they have credits NOW
     if (!userCredits.is_pro && userCredits.credits < 1) {
       return NextResponse.json({ error: 'Limit reached' }, { status: 402 });
     }
 
-    // 4. FETCH LIVE NOTES & CONTEXT (RAG)
-    let augmentedContext = context || '';
-    
-    if (classId) {
-        const { data: notes } = await supabase
-            .from('class_notes')
-            .select('title, formatted_notes')
-            .eq('class_id', classId)
-            .order('created_at', { ascending: false })
-            .limit(3);
-
-        if (notes && notes.length > 0) {
-            const notesText = notes.map(n => `[Note: ${n.title}]\n${n.formatted_notes}`).join('\n\n');
-            augmentedContext += `\n\n[HIDDEN CONTEXT - LIVE NOTES]:\nUse the following notes from the student's class to inform your answer. Prioritize this information:\n${notesText}`;
-        }
-    }
-
-    // 5. Initialize Gemini
+    // 2. Initialize Gemini 2.0
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
     
+    // *** CRITICAL: USING GEMINI 2.0 FLASH EXPERIMENTAL ***
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash-exp', 
       systemInstruction: SYSTEM_PROMPT,
     });
 
-    let prompt = `[${mode.toUpperCase()} TASK]\n${text}`;
-    if (augmentedContext) prompt += `\n\nCONTEXT FROM SYSTEM (Student cannot see this):\n${augmentedContext}`;
+    let prompt = mode === 'solver' ? `[SOLVER TASK]\n${text}` : `[TUTOR TASK]\n${text}`;
+    if (context) prompt += `\n\nCONTEXT FROM ASSIGNMENT:\n${context}`;
     
     let result;
     if (imageBase64) {
@@ -119,7 +73,6 @@ export async function POST(request: NextRequest) {
 
     const responseText = await result.response.text();
 
-    // 6. Deduct Credit (if not Pro)
     if (!userCredits.is_pro) {
       await supabase.from('users_credits').update({ credits: userCredits.credits - 1 }).eq('id', userId);
     }

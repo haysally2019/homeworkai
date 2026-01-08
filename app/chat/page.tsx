@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Send, Loader2, LayoutDashboard, Sparkles } from 'lucide-react';
+import { Camera, Send, Loader2, LayoutDashboard } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { toast } from 'sonner';
 
@@ -25,7 +25,6 @@ export default function ChatPage() {
   // Params
   const assignmentId = searchParams.get('assignmentId');
   const contextParam = searchParams.get('context');
-  // Default only to solver or tutor
   const initialMode = searchParams.get('mode') as 'solver' | 'tutor' || 'solver';
 
   // State
@@ -48,11 +47,12 @@ export default function ChatPage() {
     }
   }, [user, authLoading, router]);
 
-  // Load Conversation History
+  // Load Conversation History and Class Context
   useEffect(() => {
     if (!user) return;
 
     const loadConversation = async () => {
+      // 1. If we have an assignment ID, try to find an existing conversation and get classId
       if (assignmentId) {
         const { data: assignment } = await (supabase as any)
           .from('assignments')
@@ -60,7 +60,9 @@ export default function ChatPage() {
           .eq('id', assignmentId)
           .maybeSingle();
 
-        if (assignment) setClassId(assignment.class_id);
+        if (assignment) {
+          setClassId(assignment.class_id);
+        }
 
         const { data: existingConv } = await (supabase as any)
           .from('conversations')
@@ -71,6 +73,7 @@ export default function ChatPage() {
 
         if (existingConv) {
           setConversationId(existingConv.id);
+          // Load messages
           const { data: msgs } = await (supabase as any)
             .from('messages')
             .select('*')
@@ -104,12 +107,26 @@ export default function ChatPage() {
     }
   };
 
-  const handleInsertLatex = (latex: string) => {
+  const handleInsertLatex = (latex: string, cursorOffset?: number) => {
     if (!inputRef.current) return;
+
     const start = inputRef.current.selectionStart || 0;
-    const newText = input.substring(0, start) + latex + input.substring(inputRef.current.selectionEnd || 0);
+    const end = inputRef.current.selectionEnd || 0;
+    const currentText = input;
+
+    const before = currentText.substring(0, start);
+    const after = currentText.substring(end);
+    const newText = before + latex + after;
+
     setInput(newText);
-    inputRef.current.focus();
+
+    setTimeout(() => {
+      if (inputRef.current) {
+        const newCursorPos = start + latex.length + (cursorOffset || 0);
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -125,27 +142,62 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
+      // 1. Ensure Conversation Exists
       let currentConvId = conversationId;
       if (!currentConvId) {
         const title = contextParam || (userMsg.content.slice(0, 30) + '...') || 'New Chat';
-        const { data: newConv, error } = await (supabase as any)
+        const { data: newConv, error: convError } = await (supabase as any)
           .from('conversations')
-          .insert({ user_id: user.id, assignment_id: assignmentId || null, title })
-          .select().single();
-        if (error) throw error;
+          .insert({
+            user_id: user.id,
+            assignment_id: assignmentId || null,
+            title: title
+          })
+          .select()
+          .single();
+
+        if (convError) throw convError;
         currentConvId = newConv.id;
         setConversationId(newConv.id);
       }
 
+      // 2. Upload Image to Storage if present
       let imageUrl = null;
       if (imgToSend) {
-        const filePath = `${user.id}/${currentConvId}/${Date.now()}.jpg`;
-        const blob = await (await fetch(imgToSend)).blob();
-        await supabase.storage.from('chat-images').upload(filePath, blob);
-        const { data } = supabase.storage.from('chat-images').getPublicUrl(filePath);
-        imageUrl = data.publicUrl;
+        try {
+          const base64Data = imgToSend.split(',')[1];
+          const mimeType = imgToSend.split(',')[0].split(':')[1].split(';')[0];
+          const extension = mimeType.split('/')[1];
+
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: mimeType });
+
+          const fileName = `${Date.now()}.${extension}`;
+          const filePath = `${user.id}/${currentConvId}/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('chat-images')
+            .upload(filePath, blob);
+
+          if (uploadError) throw uploadError;
+
+          const { data: urlData } = supabase.storage
+            .from('chat-images')
+            .getPublicUrl(filePath);
+
+          imageUrl = urlData.publicUrl;
+        } catch (uploadErr) {
+          console.error('Image upload failed:', uploadErr);
+          toast.error('Failed to upload image');
+        }
       }
 
+      // 3. Save User Message with Image URL
       await (supabase as any).from('messages').insert({
         conversation_id: currentConvId,
         role: 'user',
@@ -153,20 +205,23 @@ export default function ChatPage() {
         image_url: imageUrl
       });
 
+      // 4. Call AI with classId for RAG
       const res = await fetch('/api/solve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // @ts-ignore - mode is explicitly typed but API accepts string
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           text: userMsg.content,
           imageBase64: imgToSend,
           mode,
           userId: user.id,
           context: contextParam,
-          classId
+          classId: classId
         }),
       });
 
+      // --- HANDLE OUT OF CREDITS ---
       if (res.status === 402) {
         setShowPaywall(true);
         setLoading(false);
@@ -174,8 +229,14 @@ export default function ChatPage() {
       }
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
 
+      // Check for API errors
+      if (!res.ok) {
+        console.error('API Error Response:', data);
+        throw new Error(data.error || `API request failed with status ${res.status}`);
+      }
+
+      // 5. Save AI Response
       if (data.response) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
         await (supabase as any).from('messages').insert({
@@ -184,11 +245,22 @@ export default function ChatPage() {
             content: data.response
         });
         await refreshCredits();
+
+        // Show streak reward notification
+        if (data.streakRewardAwarded && data.streakBonus > 0) {
+          toast.success(`🔥 ${data.currentStreak}-Day Streak! You earned ${data.streakBonus} bonus credits!`, {
+            duration: 5000,
+          });
+        }
+      } else {
+        throw new Error("No response from AI");
       }
 
     } catch (err: any) {
-      toast.error(`Error: ${err.message}`);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Connection error. Please try again." }]);
+      console.error('Chat Error:', err);
+      const errorMessage = err?.message || 'Unknown error';
+      toast.error(`Failed: ${errorMessage}`);
+      setMessages(prev => [...prev, { role: 'assistant', content: "I'm having trouble connecting right now. Please try again." }]);
     } finally {
       setLoading(false);
     }
@@ -202,24 +274,34 @@ export default function ChatPage() {
       <header className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur flex items-center justify-between px-6 sticky top-0 z-10">
         <div className="flex flex-col">
           <span className="font-semibold text-slate-800 flex items-center gap-2">
-            {contextParam ? <><span className="truncate max-w-[200px]">{contextParam}</span><Badge variant="outline">Context Active</Badge></> : "Homework Helper"}
+            {contextParam ? (
+              <>
+                 <span className="truncate max-w-[200px]">{contextParam}</span>
+                 <Badge variant="outline" className="text-[10px] font-normal text-slate-500">Assignment Chat</Badge>
+              </>
+            ) : (
+              "Homework Helper"
+            )}
           </span>
-          <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5 uppercase tracking-wider">
-            <Sparkles className="w-3 h-3 text-blue-500" /> Powered by Google Gemini
+          <span className="text-xs text-slate-500 flex items-center gap-1">
+            Powered by Gemini 1.5 Flash <span className="w-1.5 h-1.5 rounded-full bg-green-500"/>
           </span>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
-            {['solver', 'tutor'].map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m as any)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all capitalize ${mode === m ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                {m}
-              </button>
-            ))}
+            <button
+              onClick={() => setMode('solver')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${mode === 'solver' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Solver
+            </button>
+            <button
+              onClick={() => setMode('tutor')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${mode === 'tutor' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Tutor
+            </button>
           </div>
         </div>
       </header>
@@ -231,15 +313,35 @@ export default function ChatPage() {
             <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-4">
               <LayoutDashboard className="w-8 h-8" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">How can I help today?</h2>
-            <p className="text-slate-500">I can help you solve problems or understand concepts.</p>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">
+              {contextParam ? `Start working on ${contextParam}` : "How can I help today?"}
+            </h2>
+            <p className="text-slate-500 max-w-md">
+              {conversationId ? "Previous conversation loaded." : "Ask a question to start a new thread for this assignment."}
+            </p>
           </div>
         )}
         
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-4 shadow-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'}`}>
-              {m.image && <img src={m.image} alt="Upload" className="rounded-lg mb-3 max-h-60 object-cover bg-black/10" />}
+            <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-4 shadow-sm ${
+              m.role === 'user'
+                ? 'bg-blue-600 text-white rounded-br-none'
+                : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+            }`}>
+              {m.image && (
+                <>
+                  <div className="text-xs opacity-50 mb-1 flex items-center gap-1">
+                    <Camera className="w-3 h-3"/> Image
+                  </div>
+                  <img
+                    src={m.image}
+                    alt="Upload"
+                    className="rounded-lg mb-3 max-h-60 object-cover bg-black/10 w-full"
+                  />
+                </>
+              )}
+
               <MessageRenderer content={m.content} role={m.role} />
             </div>
           </div>
@@ -257,24 +359,44 @@ export default function ChatPage() {
 
       {/* Input Area */}
       <div className="absolute bottom-0 w-full bg-white/80 backdrop-blur border-t border-slate-200">
-        <Suspense fallback={<div className="h-12" />}><MathToolbar onInsert={handleInsertLatex} /></Suspense>
+        <Suspense fallback={<div className="h-12" />}>
+          <MathToolbar onInsert={handleInsertLatex} />
+        </Suspense>
         <div className="p-4">
           <form onSubmit={handleSubmit} className="relative max-w-3xl mx-auto flex gap-3 items-end">
-            {selectedImage && (
-              <div className="absolute bottom-16 left-0 bg-white p-2 rounded-xl shadow-lg border border-slate-200">
-                <img src={selectedImage} alt="Preview" className="h-20 rounded-lg" />
-                <button type="button" onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">✕</button>
-              </div>
-            )}
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageCapture} className="hidden" />
-            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="rounded-xl h-12 w-12 shrink-0 border-slate-200"><Camera className="w-5 h-5 text-slate-500" /></Button>
-            <Input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder="Ask a question..." className="h-12 rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-blue-500 text-base" />
-            <Button type="submit" disabled={loading || (!input && !selectedImage)} className="h-12 w-12 rounded-xl shrink-0 bg-blue-600 hover:bg-blue-700 text-white"><Send className="w-5 h-5" /></Button>
-          </form>
+          {selectedImage && (
+            <div className="absolute bottom-16 left-0 bg-white p-2 rounded-xl shadow-lg border border-slate-200 animate-in slide-in-from-bottom-2">
+              <img src={selectedImage} alt="Preview" className="h-20 rounded-lg" />
+              <button type="button" onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-sm">✕</button>
+            </div>
+          )}
+          
+          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageCapture} className="hidden" />
+          
+          <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="rounded-xl h-12 w-12 shrink-0 border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50">
+            <Camera className="w-5 h-5" />
+          </Button>
+          
+          <Input
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder={mode === 'solver' ? "Ask a question..." : "What are you stuck on?"}
+            className="h-12 rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-blue-500 focus-visible:bg-white transition-all text-base"
+          />
+          
+          <Button type="submit" disabled={loading || (!input && !selectedImage)} className="h-12 w-12 rounded-xl shrink-0 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-200">
+            <Send className="w-5 h-5" />
+          </Button>
+        </form>
         </div>
       </div>
 
-      {showPaywall && <Suspense fallback={null}><PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} /></Suspense>}
+      {showPaywall && (
+        <Suspense fallback={null}>
+          <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
