@@ -17,7 +17,7 @@ import {
   PenTool 
 } from 'lucide-react';
 import { MaterialsTab } from '@/components/class-tabs/MaterialsTab';
-import { NotesTab } from '@/components/class-tabs/NotesTab'; // Ensure this exists
+import { NotesTab } from '@/components/class-tabs/NotesTab';
 import { AssignmentsTab } from '@/components/class-tabs/AssignmentsTab';
 import { ClassChatInterface } from '@/components/ClassChatInterface';
 import { MessageRenderer } from '@/components/MessageRenderer';
@@ -144,29 +144,55 @@ export default function ClassDetailsPage() {
         </div>
 
         <div className="flex-1 overflow-hidden relative bg-slate-50/50">
-          <TabsContent value="chat" className="h-full m-0 data-[state=active]:flex flex-col">
+          
+          {/* Chat Tab - Optimized to stay mounted */}
+          <TabsContent 
+            value="chat" 
+            forceMount={true} 
+            className="h-full m-0 data-[state=active]:flex flex-col data-[state=inactive]:hidden"
+          >
              <ClassChatInterface classId={classData.id} className={classData.name} />
           </TabsContent>
 
-          <TabsContent value="notes" className="h-full m-0 p-4 md:p-6 overflow-y-auto">
+          {/* Notes Tab - Optimized to stay mounted */}
+          <TabsContent 
+            value="notes" 
+            forceMount={true} 
+            className="h-full m-0 p-4 md:p-6 overflow-y-auto data-[state=inactive]:hidden"
+          >
             <div className="max-w-6xl mx-auto">
               <NotesTab classId={classData.id} userId={user?.id || ''} />
             </div>
           </TabsContent>
 
-          <TabsContent value="materials" className="h-full m-0 p-4 md:p-6 overflow-y-auto">
+          {/* Materials Tab - Optimized to stay mounted */}
+          <TabsContent 
+            value="materials" 
+            forceMount={true} 
+            className="h-full m-0 p-4 md:p-6 overflow-y-auto data-[state=inactive]:hidden"
+          >
             <div className="max-w-6xl mx-auto">
               <MaterialsTab classId={classData.id} userId={user?.id || ''} />
             </div>
           </TabsContent>
 
-          <TabsContent value="assignments" className="h-full m-0 p-4 md:p-6 overflow-y-auto">
+          {/* Assignments Tab - Optimized to stay mounted */}
+          <TabsContent 
+            value="assignments" 
+            forceMount={true} 
+            className="h-full m-0 p-4 md:p-6 overflow-y-auto data-[state=inactive]:hidden"
+          >
             <div className="max-w-5xl mx-auto">
               <AssignmentsTab classId={classData.id} userId={user?.id || ''} />
             </div>
           </TabsContent>
 
-          <TabsContent value="grader" className="h-full m-0 p-4 md:p-6 overflow-y-auto">
+          {/* Grader Tab - Optimized to stay mounted */}
+          <TabsContent 
+            value="grader" 
+            forceMount={true} 
+            className="h-full m-0 p-4 md:p-6 overflow-y-auto data-[state=inactive]:hidden"
+          >
              <div className="max-w-5xl mx-auto h-full flex flex-col">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
