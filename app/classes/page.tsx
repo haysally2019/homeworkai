@@ -2,12 +2,12 @@
 
 import { useState, lazy, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { useClasses } from '@/hooks/use-classes';
+import { useClasses, createClass } from '@/hooks/use-classes'; // Fixed import
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2, BookOpen, GraduationCap } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -16,17 +16,22 @@ const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({
 
 export default function ClassesPage() {
   const router = useRouter();
-  const { classes, loading, createClass } = useClasses();
-  const { user, isPro } = useAuth(); // Get pro status
+  const { user, isPro } = useAuth();
+  
+  // FIXED: Pass user?.id to the hook
+  const { classes, isLoading, mutate } = useClasses(user?.id);
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [newClass, setNewClass] = useState({ name: '', code: '', color: '#3b82f6' });
   const [creating, setCreating] = useState(false);
 
-  // LOGIC: Check limit before opening dialog
+  // FIXED: Safely check length with optional chaining (?.) and fallback
+  const classCount = classes?.length || 0;
+
   const handleCreateClick = () => {
-    if (!isPro && classes.length >= 1) {
+    // Logic: Check limit before opening dialog
+    if (!isPro && classCount >= 1) {
       setShowPaywall(true);
       return;
     }
@@ -34,13 +39,16 @@ export default function ClassesPage() {
   };
 
   const handleCreateClass = async () => {
-    if (!newClass.name || !newClass.code) return;
+    if (!newClass.name || !newClass.code || !user) return;
     setCreating(true);
     try {
-      await createClass(newClass);
+      // FIXED: createClass is an async function, not from the hook
+      await createClass(user.id, newClass);
+      
       setIsDialogOpen(false);
       setNewClass({ name: '', code: '', color: '#3b82f6' });
       toast.success('Class created successfully');
+      mutate(); // Refresh the list
     } catch (error: any) {
       toast.error(error.message || 'Failed to create class');
     } finally {
@@ -48,7 +56,7 @@ export default function ClassesPage() {
     }
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
+  if (isLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
@@ -63,7 +71,8 @@ export default function ClassesPage() {
         </Button>
       </div>
 
-      {classes.length === 0 ? (
+      {/* FIXED: Safe check for empty array */}
+      {classCount === 0 ? (
         <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
           <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-slate-100">
             <BookOpen className="w-8 h-8 text-slate-400" />
@@ -76,7 +85,7 @@ export default function ClassesPage() {
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {classes.map((cls) => (
+          {classes?.map((cls: any) => (
             <Card 
               key={cls.id} 
               className="group hover:shadow-lg transition-all cursor-pointer border-slate-200 hover:border-blue-200"
