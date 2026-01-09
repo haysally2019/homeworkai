@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import dynamic from 'next/dynamic'; // PERFORMANCE: Dynamic imports
+// FIX: Removed dynamic imports to stop the "Element type is invalid" crash
+import { FeaturesSection, ReviewsSection, FAQSection } from './LandingSections'; 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -12,18 +12,11 @@ import {
   XCircle,
 } from 'lucide-react';
 
-// Lazy load non-critical sections to boost initial load speed
-const FeaturesSection = dynamic(() => import('./LandingSections').then(mod => mod.FeaturesSection), { 
-  loading: () => <div className="h-96 bg-slate-50 animate-pulse" /> 
-});
-const ReviewsSection = dynamic(() => import('./LandingSections').then(mod => mod.ReviewsSection));
-const FAQSection = dynamic(() => import('./LandingSections').then(mod => mod.FAQSection));
-
 export function LandingPage() {
   return (
-    <div className="h-full overflow-y-auto bg-white scroll-smooth font-sans selection:bg-blue-100">
+    <div className="min-h-screen bg-white font-sans selection:bg-blue-100">
       
-      {/* Navbar - Kept simple for instant render */}
+      {/* Navbar */}
       <nav className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/80 backdrop-blur-xl">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-2">
@@ -33,24 +26,26 @@ export function LandingPage() {
             <span className="text-xl font-bold text-slate-900 tracking-tight">Altus</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-            <a href="#features" className="hover:text-blue-600 transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-blue-600 transition-colors">How it Works</a>
-            <a href="#reviews" className="hover:text-blue-600 transition-colors">Reviews</a>
+            <Link href="#features" className="hover:text-blue-600 transition-colors">Features</Link>
+            <Link href="#how-it-works" className="hover:text-blue-600 transition-colors">How it Works</Link>
+            <Link href="#reviews" className="hover:text-blue-600 transition-colors">Reviews</Link>
           </div>
           <div className="flex items-center gap-4">
             <Link href="/login" className="hidden sm:block text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
               Log in
             </Link>
-            <Link href="/signup">
-              <Button className="rounded-full bg-slate-900 hover:bg-slate-800 text-white px-6 shadow-xl shadow-slate-900/10 transition-all hover:scale-105 active:scale-95">
+            
+            {/* CTA Button with 'asChild' for instant click response */}
+            <Button asChild className="rounded-full bg-slate-900 hover:bg-slate-800 text-white px-6 shadow-xl shadow-slate-900/10 transition-all hover:scale-105 active:scale-95">
+              <Link href="/signup">
                 Sign Up Free
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section - Prioritized for LCP */}
+      {/* Hero Section */}
       <section className="relative overflow-hidden pt-12 pb-16 md:pt-20 md:pb-24">
         <div className="container px-4 md:px-6 mx-auto relative z-10">
           <div className="text-center max-w-4xl mx-auto space-y-6">
@@ -71,17 +66,18 @@ export function LandingPage() {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-              <Link href="/signup" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full h-14 px-10 text-lg rounded-full bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-600/20 transition-all hover:-translate-y-1">
+              <Button asChild size="lg" className="w-full sm:w-auto h-14 px-10 text-lg rounded-full bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-600/20 transition-all hover:-translate-y-1">
+                <Link href="/signup">
                   Start Learning for Free
                   <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
-              <Link href="#features" className="w-full sm:w-auto">
-                <Button variant="outline" size="lg" className="w-full h-14 px-10 text-lg rounded-full border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+                </Link>
+              </Button>
+
+              <Button asChild variant="outline" size="lg" className="w-full sm:w-auto h-14 px-10 text-lg rounded-full border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+                <Link href="#features">
                   See How It Works
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
             
             <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 pt-6 text-sm text-slate-500">
@@ -95,7 +91,7 @@ export function LandingPage() {
           </div>
         </div>
         
-        {/* Optimized background */}
+        {/* Background gradient */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-gradient-to-b from-blue-50 to-white rounded-[100%] blur-3xl -z-10 opacity-60" />
       </section>
 
@@ -115,7 +111,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Comparison Section (Static, fast render) */}
+      {/* Comparison Section */}
       <section className="py-16 md:py-24 bg-white">
         <div className="container px-4 mx-auto">
           <div className="text-center mb-12">
@@ -152,7 +148,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Lazy Loaded Sections */}
+      {/* Feature Sections (Standard Import) */}
       <FeaturesSection />
       <ReviewsSection />
       <FAQSection />
