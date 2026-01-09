@@ -76,7 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (session?.user) {
           setUser(session.user);
-          await fetchCredits(session.user.id);
+          // OPTIMIZATION: Don't await this. Let it run in background so app loads instantly.
+          fetchCredits(session.user.id);
         }
       } catch (error) {
         console.error('Exception in initAuth:', error);
@@ -92,9 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           setUser(session.user);
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            (async () => {
-              await fetchCredits(session.user.id);
-            })();
+            fetchCredits(session.user.id);
           }
         } else {
           setUser(null);
