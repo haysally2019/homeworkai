@@ -5,10 +5,12 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Flame, BookOpen, Trophy, TrendingUp, MessageSquare, FileText, Calendar, Zap, GraduationCap, ArrowRight, Brain, Sparkles, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
+// TYPES
 interface DashboardStats {
   activeClasses: number;
   totalAssignments: number;
@@ -27,22 +29,18 @@ interface RecentActivity {
 
 export default function DashboardPage() {
   const { user, credits, currentStreak, longestStreak, isPro } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({
-    activeClasses: 0,
-    totalAssignments: 0,
-    completedAssignments: 0,
-    recentNotes: 0,
-    totalConversations: 0,
-  });
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
-  const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  
+  // Initialize with null to show skeletons initially, not 0
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[] | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!user) return;
 
       try {
+        // Run queries in parallel but don't block the UI rendering
         const [
           classesCount,
           totalAssignmentsCount,
@@ -82,43 +80,31 @@ export default function DashboardPage() {
 
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchDashboardData();
   }, [user]);
 
+  // Helpers
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
     if (hour < 18) return 'Good afternoon';
     return 'Good evening';
   };
-
   const getUserName = () => user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Student';
   const getSchoolName = () => user?.user_metadata?.school || 'University';
   const getCurrentDate = () => new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-  const completionRate = stats.totalAssignments > 0
-    ? Math.round((stats.completedAssignments / stats.totalAssignments) * 100)
+  // Calculations
+  const completionRate = (stats?.totalAssignments || 0) > 0
+    ? Math.round(((stats?.completedAssignments || 0) / (stats?.totalAssignments || 1)) * 100)
     : 0;
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
-        <div className="flex gap-2">
-          <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-          <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-          <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
-        </div>
-      </div>
-    );
-  }
-
+  // RENDER: No global loading check. We render the layout immediately.
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 min-h-screen bg-slate-50">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 min-h-screen bg-slate-50 animate-in fade-in duration-500">
       
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -143,15 +129,15 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <StatCard 
           title="Daily Streak" 
-          value={`${currentStreak} days`}
-          subtext={currentStreak === longestStreak && currentStreak > 0 ? "🔥 Personal best!" : `Best: ${longestStreak} days`}
+          value={currentStreak !== undefined ? `${currentStreak} days` : null}
+          subtext={currentStreak === longestStreak && currentStreak > 0 ? "🔥 Personal best!" : `Best: ${longestStreak || 0} days`}
           icon={<Flame className="h-5 w-5 text-orange-600" />}
           gradient="from-orange-50 to-red-50"
           borderColor="border-orange-100"
         />
         <StatCard 
           title="Credits Available" 
-          value={credits.toString()}
+          value={credits !== undefined ? credits.toString() : null}
           subtext={isPro ? "Unlimited Access" : "Resets daily at midnight"}
           icon={<Zap className="h-5 w-5 text-blue-600" />}
           gradient="from-blue-50 to-indigo-50"
@@ -159,7 +145,7 @@ export default function DashboardPage() {
         />
         <StatCard 
           title="Active Classes" 
-          value={stats.activeClasses.toString()}
+          value={stats?.activeClasses.toString()}
           subtext="Current semester"
           icon={<BookOpen className="h-5 w-5 text-emerald-600" />}
           gradient="from-emerald-50 to-teal-50"
@@ -167,8 +153,8 @@ export default function DashboardPage() {
         />
         <StatCard 
           title="Completion Rate" 
-          value={`${completionRate}%`}
-          subtext={`${stats.completedAssignments} / ${stats.totalAssignments} tasks done`}
+          value={stats ? `${completionRate}%` : null}
+          subtext={stats ? `${stats.completedAssignments} / ${stats.totalAssignments} tasks done` : "Calculating..."}
           icon={<Trophy className="h-5 w-5 text-purple-600" />}
           gradient="from-purple-50 to-pink-50"
           borderColor="border-purple-100"
@@ -190,7 +176,7 @@ export default function DashboardPage() {
                   <CardDescription>Your weekly task completion momentum</CardDescription>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-slate-900">{completionRate}%</div>
+                  <div className="text-2xl font-bold text-slate-900">{stats ? `${completionRate}%` : <Skeleton className="h-8 w-16 ml-auto" />}</div>
                   <div className="text-xs text-slate-500">Overall Progress</div>
                 </div>
               </div>
@@ -212,14 +198,18 @@ export default function DashboardPage() {
                     <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-2">
                       <MessageSquare className="h-5 w-5 text-blue-600" />
                     </div>
-                    <div className="text-2xl font-bold text-slate-900">{stats.totalConversations}</div>
+                    <div className="text-2xl font-bold text-slate-900">
+                      {stats ? stats.totalConversations : <Skeleton className="h-8 w-12 mx-auto" />}
+                    </div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">AI Sessions</div>
                   </div>
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center text-center">
                     <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
                       <FileText className="h-5 w-5 text-emerald-600" />
                     </div>
-                    <div className="text-2xl font-bold text-slate-900">{stats.recentNotes}</div>
+                    <div className="text-2xl font-bold text-slate-900">
+                      {stats ? stats.recentNotes : <Skeleton className="h-8 w-12 mx-auto" />}
+                    </div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Study Notes</div>
                   </div>
                 </div>
@@ -236,7 +226,19 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {recentActivity.length > 0 ? (
+              {!recentActivity ? (
+                <div className="p-4 space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="flex gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="space-y-2 flex-1">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/4" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : recentActivity.length > 0 ? (
                 <div className="divide-y divide-slate-100">
                   {recentActivity.map((activity) => (
                     <div key={activity.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
@@ -333,6 +335,7 @@ export default function DashboardPage() {
   );
 }
 
+// SKELETON-AWARE COMPONENTS
 function StatCard({ title, value, subtext, icon, gradient, borderColor }: any) {
   return (
     <Card className={cn(
@@ -347,7 +350,9 @@ function StatCard({ title, value, subtext, icon, gradient, borderColor }: any) {
           </div>
         </div>
         <div className="space-y-1">
-          <div className="text-3xl font-bold text-slate-900 tracking-tight">{value}</div>
+          <div className="text-3xl font-bold text-slate-900 tracking-tight">
+            {value !== null && value !== undefined ? value : <Skeleton className="h-9 w-24" />}
+          </div>
           <p className="text-xs font-medium text-slate-500">{subtext}</p>
         </div>
       </CardContent>
