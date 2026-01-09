@@ -5,7 +5,7 @@ import { ClientLayout } from '@/components/ClientLayout';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'Altus - Homework Helper',
+  title: 'LockIn AI - Homework Helper',
   description: 'AI-powered homework assistance',
 };
 

@@ -79,7 +79,7 @@ export function HowItWorksSection() {
     <section id="how-it-works" className="py-20 bg-white">
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">How Altus works</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">How LockIn AI works</h2>
           <p className="text-lg text-slate-600">Three simple steps to go from "confused" to "confident".</p>
         </div>
 
@@ -121,7 +121,7 @@ export function FeaturesSection() {
             icon={<Brain className="w-6 h-6 text-white" />}
             color="bg-purple-600"
             title="AI Problem Solver"
-            desc="Stuck on Calc II? Snap a photo. Altus identifies the problem and teaches you the methodology, not just the solution."
+            desc="Stuck on Calc II? Snap a photo. LockIn AI identifies the problem and teaches you the methodology, not just the solution."
           />
           <FeatureCard 
             icon={<ShieldCheck className="w-6 h-6 text-white" />}
@@ -133,7 +133,7 @@ export function FeaturesSection() {
             icon={<FileText className="w-6 h-6 text-white" />}
             color="bg-emerald-500"
             title="Context-Aware Notes"
-            desc="Altus organizes your work by Class. It remembers your previous questions and builds a custom study guide for you."
+            desc="LockIn AI organizes your work by Class. It remembers your previous questions and builds a custom study guide for you."
           />
         </div>
       </div>
@@ -292,7 +292,7 @@ export function ReviewsSection() {
         <h2 className="text-3xl font-bold text-center text-slate-900 mb-12">Loved by thousands</h2>
         <div className="grid md:grid-cols-3 gap-8">
           <TestimonialCard 
-            quote="I was failing Calculus II until I started using Altus. The step-by-step breakdown is a lifesaver."
+            quote="I was failing Calculus II until I started using LockIn AI. The step-by-step breakdown is a lifesaver."
             author="Sarah J."
             role="Engineering Major"
             uni="MIT"
@@ -327,7 +327,7 @@ export function FAQSection() {
             answer="The Semester Pass is a one-time payment of $24.99 that gives you full Pro access for 4 months. It's perfect for students who want coverage for a single term without worrying about recurring monthly subscriptions."
           />
           <FAQItem 
-            question="Is Altus really free?"
+            question="Is LockIn AI really free?"
             answer="Yes! Our Free Starter plan gives you 5 AI credits every single day. This is enough for a few homework problems or quick questions. Credits reset at midnight."
           />
           <FAQItem 
@@ -336,7 +336,7 @@ export function FAQSection() {
           />
           <FAQItem 
             question="Does it work for advanced math?"
-            answer="Yes. Altus is powered by Google Gemini, capable of solving complex Calculus, Linear Algebra, Organic Chemistry, and Physics problems with high accuracy."
+            answer="Yes. LockIn AI is powered by Google Gemini, capable of solving complex Calculus, Linear Algebra, Organic Chemistry, and Physics problems with high accuracy."
           />
         </Accordion>
       </div>
@@ -359,7 +359,7 @@ export function CTASection() {
           Ready to boost your GPA?
         </h2>
         <p className="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">
-          Join thousands of students who are saving time and learning faster with Altus.
+          Join thousands of students who are saving time and learning faster with LockIn AI.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button asChild size="lg" className="h-14 px-8 text-lg bg-white text-slate-900 hover:bg-blue-50 hover:text-blue-700">

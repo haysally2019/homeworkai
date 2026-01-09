@@ -1,4 +1,4 @@
-# Altus - AI University Study Companion
+# LockIn AI - AI University Study Companion
 
 A mobile-first Progressive Web App (PWA) built with Next.js 14, featuring AI-powered problem solving and tutoring for university students.
 

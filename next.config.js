@@ -3,10 +3,9 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  typescript: {
-    ignoreBuildErrors: false,
+  images: {
+    domains: ['images.unsplash.com', 'i.imgur.com'],
   },
-  images: { unoptimized: true },
 };
 
 module.exports = nextConfig;

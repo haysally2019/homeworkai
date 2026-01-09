@@ -2,7 +2,7 @@
   # Create Users Credits System
 
   ## Overview
-  This migration creates the credits management system for the Altus application.
+  This migration creates the credits management system for the LockIn AI application.
 
   ## New Tables
   1. `users_credits`

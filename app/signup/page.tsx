@@ -76,7 +76,7 @@ export default function SignupPage() {
           </div>
           <CardTitle className="text-2xl text-center text-white font-bold">Create Account</CardTitle>
           <CardDescription className="text-center text-slate-400">
-            Join Altus to start your learning journey
+            Join LockIn AI to start your learning journey
           </CardDescription>
         </CardHeader>
         <CardContent>

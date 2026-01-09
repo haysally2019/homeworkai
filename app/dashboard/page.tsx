@@ -2,13 +2,16 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Flame, BookOpen, Trophy, TrendingUp, MessageSquare, FileText, Calendar, Zap, GraduationCap, ArrowRight, Brain, Sparkles, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+
+// Lazy load the Paywall to ensure fast dashboard initial load
+const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 
 // TYPES
 interface DashboardStats {
@@ -34,6 +37,7 @@ export default function DashboardPage() {
   // Initialize with null to show skeletons initially, not 0
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[] | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -119,7 +123,10 @@ export default function DashboardPage() {
           </div>
         </div>
         {!isPro && (
-          <Button className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-lg shadow-orange-200 hover:shadow-xl hover:scale-105 transition-all rounded-full px-6">
+          <Button 
+            onClick={() => setShowPaywall(true)}
+            className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-lg shadow-orange-200 hover:shadow-xl hover:scale-105 transition-all rounded-full px-6"
+          >
             <Zap className="w-4 h-4 mr-2 fill-white" /> Upgrade to Pro
           </Button>
         )}
@@ -331,6 +338,12 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {showPaywall && (
+        <Suspense fallback={null}>
+          <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

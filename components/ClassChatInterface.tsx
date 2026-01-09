@@ -5,16 +5,15 @@ import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Camera, Send, Loader2, Sparkles, Bot, Paperclip } from 'lucide-react';
+import { Send, Sparkles, Bot, Paperclip } from 'lucide-react';
 import { MessageRenderer } from '@/components/MessageRenderer';
 import { toast } from 'sonner';
 
 const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 const MathToolbar = lazy(() => import('@/components/MathToolbar').then(m => ({ default: m.MathToolbar })));
 
-// OPTIMIZATION 1: Add 'id' to type for stable React keys
 type Message = { 
-  id: string; // Unique ID is critical for performance
+  id: string; 
   role: 'user' | 'assistant'; 
   content: string; 
   image?: string; 
@@ -25,7 +24,6 @@ interface ClassChatInterfaceProps {
   className: string;
 }
 
-// OPTIMIZATION 2: Memoized bubble with 'loading="lazy"' for images
 const MessageBubble = memo(({ message }: { message: Message }) => (
   <div className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
     {message.role === 'assistant' && (
@@ -40,7 +38,7 @@ const MessageBubble = memo(({ message }: { message: Message }) => (
         <img 
           src={message.image} 
           alt="Upload" 
-          loading="lazy" // Defers loading off-screen images
+          loading="lazy" 
           className="rounded-lg mb-3 max-h-60 object-cover bg-black/5" 
         />
       )}
@@ -78,7 +76,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       if (existingConv) {
         setConversationId(existingConv.id);
         
-        // OPTIMIZATION 3: Limit initial fetch to 50 items to prevent main-thread blocking
         const { data: msgs } = await (supabase as any)
           .from('messages')
           .select('*')
@@ -87,7 +84,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
           .limit(50);
 
         if (msgs) {
-          // Map real DB IDs to the state for stable keys
           setMessages(msgs.reverse().map((m: any) => ({
             id: m.id,
             role: m.role as 'user' | 'assistant',
@@ -134,7 +130,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       return;
     }
 
-    // OPTIMIZATION 4: Generate temp ID for optimistic update
     const tempId = Date.now().toString(); 
     const userMsg: Message = { 
       id: tempId, 
@@ -182,7 +177,7 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
         body: JSON.stringify({
           text: userMsg.content,
           imageBase64: imgToSend,
-          mode: 'tutor',
+          mode: 'general', // UPDATED: Changed from 'tutor' to 'general'
           userId: user.id,
           classId: classId,
           context: `Subject: ${className}. Use the provided class notes and documents to answer.` 
@@ -195,7 +190,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       if (!res.ok) throw new Error(data.error);
 
       if (data.response) {
-        // Add assistant message with temp ID
         const aiMsgId = (Date.now() + 1).toString();
         setMessages(prev => [...prev, { 
           id: aiMsgId, 
@@ -227,7 +221,7 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
         <div className="bg-slate-900/5 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
           <Sparkles className="w-3 h-3 text-blue-600" />
-          <span className="text-xs font-semibold text-slate-700">Knowledge Base Active</span>
+          <span className="text-xs font-semibold text-slate-700">AI Study Companion</span>
         </div>
       </div>
 
@@ -242,7 +236,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
           </div>
         )}
         
-        {/* OPTIMIZATION 5: Use stable IDs as keys */}
         {messages.map((m) => (
           <MessageBubble key={m.id} message={m} />
         ))}

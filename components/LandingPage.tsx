@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { 
   SocialProofSection, 
   FeaturesSection, 
-  HowItWorksSection,
+  HowItWorksSection, 
   ReviewsSection, 
   FAQSection,
   PricingSection,
@@ -20,6 +20,7 @@ import {
   Bot
 } from 'lucide-react';
 import { useState } from 'react';
+import Image from 'next/image';
 
 export function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -30,11 +31,15 @@ export function LandingPage() {
       {/* Navbar */}
       <nav className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/80 backdrop-blur-xl">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-600/20 group-hover:scale-105 transition-transform">
-              A
-            </div>
-            <span className="text-xl font-bold text-slate-900 tracking-tight">Altus</span>
+          <Link href="/" className="flex items-center gap-2 group relative h-10 w-32">
+             {/* Logo Update */}
+             <Image 
+                src="https://i.imgur.com/8PqYx8W.png" 
+                alt="LockIn AI" 
+                fill
+                className="object-contain object-left"
+                priority
+             />
           </Link>
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
@@ -79,7 +84,7 @@ export function LandingPage() {
               </h1>
               
               <p className="text-xl text-slate-500 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                Stop stressing over assignments. Altus uses advanced AI to solve problems, grade essays, and organize your study notes—instantly.
+                Stop stressing over assignments. LockIn AI uses advanced models to solve problems, grade essays, and organize your study notes—instantly.
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
@@ -121,7 +126,7 @@ export function LandingPage() {
                      <div className="w-3 h-3 rounded-full bg-amber-400" />
                      <div className="w-3 h-3 rounded-full bg-green-400" />
                    </div>
-                   <div className="mx-auto text-xs font-medium text-slate-400">Altus AI Tutor</div>
+                   <div className="mx-auto text-xs font-medium text-slate-400">LockIn AI Tutor</div>
                  </div>
 
                  {/* Chat Content */}
@@ -184,11 +189,11 @@ export function LandingPage() {
               </ul>
             </div>
 
-            {/* The Altus Way */}
+            {/* The LockIn Way */}
             <div className="p-8 md:p-10 rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 relative shadow-lg">
               <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-3">
                 <div className="p-2 bg-blue-600 text-white rounded-lg shadow-md"><CheckCircle2 className="w-6 h-6" /></div>
-                The Altus Way
+                The LockIn Way
               </h3>
               <ul className="space-y-4 text-slate-700 font-medium">
                 <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0" /> Instant solutions with detailed logic</li>
@@ -212,15 +217,17 @@ export function LandingPage() {
         <div className="container px-4 mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
-               <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center font-bold text-white">A</div>
-               <span className="font-bold text-white text-xl tracking-tight">Altus</span>
+               {/* Small Footer Logo */}
+               <div className="relative h-6 w-24 opacity-80 grayscale hover:grayscale-0 transition-all">
+                 <Image src="https://i.imgur.com/8PqYx8W.png" alt="LockIn AI" fill className="object-contain object-left" />
+               </div>
             </div>
             <div className="flex gap-8 text-sm font-medium">
                 <a href="#" className="hover:text-white transition-colors">Privacy</a>
                 <a href="#" className="hover:text-white transition-colors">Terms</a>
                 <a href="#" className="hover:text-white transition-colors">Contact</a>
             </div>
-            <div className="text-sm">© {new Date().getFullYear()} Altus Learning Inc.</div>
+            <div className="text-sm">© {new Date().getFullYear()} LockIn Learning Inc.</div>
           </div>
         </div>
       </footer>

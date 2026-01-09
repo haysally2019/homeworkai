@@ -248,7 +248,7 @@ export default function ChatPage() {
             <div className="flex justify-start">
               <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-none p-4 shadow-sm flex items-center gap-3">
                 <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                <span className="text-sm text-slate-500">Altus is thinking...</span>
+                <span className="text-sm text-slate-500">LockIn AI is thinking...</span>
               </div>
             </div>
         )}
