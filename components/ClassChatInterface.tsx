@@ -12,14 +12,20 @@ import { toast } from 'sonner';
 const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 const MathToolbar = lazy(() => import('@/components/MathToolbar').then(m => ({ default: m.MathToolbar })));
 
-type Message = { role: 'user' | 'assistant'; content: string; image?: string; };
+// OPTIMIZATION 1: Add 'id' to type for stable React keys
+type Message = { 
+  id: string; // Unique ID is critical for performance
+  role: 'user' | 'assistant'; 
+  content: string; 
+  image?: string; 
+};
 
 interface ClassChatInterfaceProps {
   classId: string;
   className: string;
 }
 
-// OPTIMIZATION: Memoized bubble component to prevent heavy re-renders
+// OPTIMIZATION 2: Memoized bubble with 'loading="lazy"' for images
 const MessageBubble = memo(({ message }: { message: Message }) => (
   <div className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
     {message.role === 'assistant' && (
@@ -30,7 +36,14 @@ const MessageBubble = memo(({ message }: { message: Message }) => (
     <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-4 shadow-sm text-sm md:text-base leading-relaxed ${
       message.role === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-sm'
     }`}>
-      {message.image && <img src={message.image} alt="Upload" className="rounded-lg mb-3 max-h-60 object-cover bg-black/5" />}
+      {message.image && (
+        <img 
+          src={message.image} 
+          alt="Upload" 
+          loading="lazy" // Defers loading off-screen images
+          className="rounded-lg mb-3 max-h-60 object-cover bg-black/5" 
+        />
+      )}
       <MessageRenderer content={message.content} role={message.role} />
     </div>
   </div>
@@ -65,8 +78,7 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       if (existingConv) {
         setConversationId(existingConv.id);
         
-        // OPTIMIZATION: Order by DESC (newest first) and LIMIT to 50
-        // This prevents main-thread blocking on initial load
+        // OPTIMIZATION 3: Limit initial fetch to 50 items to prevent main-thread blocking
         const { data: msgs } = await (supabase as any)
           .from('messages')
           .select('*')
@@ -75,8 +87,9 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
           .limit(50);
 
         if (msgs) {
-          // Reverse back to chronological order for display
+          // Map real DB IDs to the state for stable keys
           setMessages(msgs.reverse().map((m: any) => ({
+            id: m.id,
             role: m.role as 'user' | 'assistant',
             content: m.content,
             image: m.image_url || undefined
@@ -121,7 +134,15 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       return;
     }
 
-    const userMsg: Message = { role: 'user', content: input, image: selectedImage || undefined };
+    // OPTIMIZATION 4: Generate temp ID for optimistic update
+    const tempId = Date.now().toString(); 
+    const userMsg: Message = { 
+      id: tempId, 
+      role: 'user', 
+      content: input, 
+      image: selectedImage || undefined 
+    };
+    
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     const imgToSend = selectedImage;
@@ -174,7 +195,14 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       if (!res.ok) throw new Error(data.error);
 
       if (data.response) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+        // Add assistant message with temp ID
+        const aiMsgId = (Date.now() + 1).toString();
+        setMessages(prev => [...prev, { 
+          id: aiMsgId, 
+          role: 'assistant', 
+          content: data.response 
+        }]);
+        
         await (supabase as any).from('messages').insert({
             conversation_id: currentConvId,
             role: 'assistant',
@@ -184,7 +212,11 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
       }
     } catch (err: any) {
       toast.error(`Error: ${err.message}`);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Connection error. Please try again." }]);
+      setMessages(prev => [...prev, { 
+        id: Date.now().toString(), 
+        role: 'assistant', 
+        content: "Connection error. Please try again." 
+      }]);
     } finally {
       setLoading(false);
     }
@@ -210,8 +242,9 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
           </div>
         )}
         
-        {messages.map((m, i) => (
-          <MessageBubble key={i} message={m} />
+        {/* OPTIMIZATION 5: Use stable IDs as keys */}
+        {messages.map((m) => (
+          <MessageBubble key={m.id} message={m} />
         ))}
         
         {loading && (
