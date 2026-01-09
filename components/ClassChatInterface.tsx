@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense, memo } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,26 @@ interface ClassChatInterfaceProps {
   className: string;
 }
 
+// OPTIMIZATION: Memoized bubble component to prevent heavy re-renders
+const MessageBubble = memo(({ message }: { message: Message }) => (
+  <div className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
+    {message.role === 'assistant' && (
+      <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm mt-1">
+        <Bot className="w-4 h-4 text-blue-600" />
+      </div>
+    )}
+    <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-4 shadow-sm text-sm md:text-base leading-relaxed ${
+      message.role === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-sm'
+    }`}>
+      {message.image && <img src={message.image} alt="Upload" className="rounded-lg mb-3 max-h-60 object-cover bg-black/5" />}
+      <MessageRenderer content={message.content} role={message.role} />
+    </div>
+  </div>
+));
+MessageBubble.displayName = 'MessageBubble';
+
 export function ClassChatInterface({ classId, className }: ClassChatInterfaceProps) {
-  const { user, refreshCredits, credits, isPro } = useAuth(); // Added credits & isPro
+  const { user, refreshCredits, credits, isPro } = useAuth();
   const supabase = createClient();
   
   const [messages, setMessages] = useState<Message[]>([]);
@@ -46,14 +64,19 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
 
       if (existingConv) {
         setConversationId(existingConv.id);
+        
+        // OPTIMIZATION: Order by DESC (newest first) and LIMIT to 50
+        // This prevents main-thread blocking on initial load
         const { data: msgs } = await (supabase as any)
           .from('messages')
           .select('*')
           .eq('conversation_id', existingConv.id)
-          .order('created_at', { ascending: true });
+          .order('created_at', { ascending: false }) 
+          .limit(50);
 
         if (msgs) {
-          setMessages(msgs.map((m: any) => ({
+          // Reverse back to chronological order for display
+          setMessages(msgs.reverse().map((m: any) => ({
             role: m.role as 'user' | 'assistant',
             content: m.content,
             image: m.image_url || undefined
@@ -93,7 +116,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
     if (!input.trim() && !selectedImage) return;
     if (!user) return;
 
-    // LOGIC: Check credits BEFORE sending request
     if (!isPro && credits <= 0) {
       setShowPaywall(true);
       return;
@@ -146,7 +168,6 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
         }),
       });
 
-      // Keep server-side check as a fallback
       if (res.status === 402) { setShowPaywall(true); setLoading(false); return; }
 
       const data = await res.json();
@@ -190,20 +211,9 @@ export function ClassChatInterface({ classId, className }: ClassChatInterfacePro
         )}
         
         {messages.map((m, i) => (
-          <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
-            {m.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm mt-1">
-                <Bot className="w-4 h-4 text-blue-600" />
-              </div>
-            )}
-            <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-4 shadow-sm text-sm md:text-base leading-relaxed ${
-              m.role === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-sm'
-            }`}>
-              {m.image && <img src={m.image} alt="Upload" className="rounded-lg mb-3 max-h-60 object-cover bg-black/5" />}
-              <MessageRenderer content={m.content} role={m.role} />
-            </div>
-          </div>
+          <MessageBubble key={i} message={m} />
         ))}
+        
         {loading && (
           <div className="flex gap-4">
              <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
