@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-// We are now importing the standard named exports we just restored in Step 1
 import { FeaturesSection, ReviewsSection, FAQSection } from './LandingSections'; 
 import { Button } from '@/components/ui/button';
 import { 
@@ -14,7 +13,8 @@ import {
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-white font-sans selection:bg-blue-100">
+    // FIX: Restored 'h-full overflow-y-auto' so you can scroll again
+    <div className="h-full overflow-y-auto bg-white scroll-smooth font-sans selection:bg-blue-100">
       
       {/* Navbar */}
       <nav className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/80 backdrop-blur-xl">
