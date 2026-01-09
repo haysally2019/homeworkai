@@ -41,48 +41,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.error('Error fetching credits:', error);
-        return;
-      }
-
-      if (data) {
+      if (!error && data) {
         setCredits(data.credits);
         setIsPro(data.is_pro);
         setCurrentStreak(data.current_streak || 0);
         setLongestStreak(data.longest_streak || 0);
       }
     } catch (error) {
-      console.error('Exception fetching credits:', error);
+      console.error('Error fetching credits:', error);
     }
   };
 
   const refreshCredits = async () => {
-    if (user) {
-      await fetchCredits(user.id);
-    }
+    if (user) await fetchCredits(user.id);
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const initAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
 
-        if (error) {
-          console.error('Error getting session:', error);
+        if (mounted) {
+          if (session?.user) {
+            setUser(session.user);
+            // PERFORMANCE: Fetch credits in background, don't await
+            fetchCredits(session.user.id);
+          }
           setLoading(false);
-          return;
-        }
-
-        if (session?.user) {
-          setUser(session.user);
-          // OPTIMIZATION: Don't await this. Let it run in background so app loads instantly.
-          fetchCredits(session.user.id);
         }
       } catch (error) {
-        console.error('Exception in initAuth:', error);
-      } finally {
-        setLoading(false);
+        console.error('Auth init error:', error);
+        if (mounted) setLoading(false);
       }
     };
 
@@ -90,6 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        if (!mounted) return;
+        
         if (session?.user) {
           setUser(session.user);
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -99,36 +92,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
           setCredits(0);
           setIsPro(false);
-          setCurrentStreak(0);
-          setLongestStreak(0);
         }
         setLoading(false);
       }
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
+  // PERFORMANCE: Render children immediately. 
+  // Do not block the entire app with a spinner. 
+  // Protected routes will handle their own loading states.
   return (
     <AuthContext.Provider value={{ user, credits, isPro, loading, currentStreak, longestStreak, refreshCredits }}>
-      {loading ? (
-        <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center text-white font-bold shadow-lg text-2xl">
-              A
-            </div>
-            <div className="flex gap-1.5">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        children
-      )}
+      {children}
     </AuthContext.Provider>
   );
 }
