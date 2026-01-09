@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-// FIX: Removed dynamic imports to stop the "Element type is invalid" crash
+// We are now importing the standard named exports we just restored in Step 1
 import { FeaturesSection, ReviewsSection, FAQSection } from './LandingSections'; 
 import { Button } from '@/components/ui/button';
 import { 
@@ -35,7 +35,6 @@ export function LandingPage() {
               Log in
             </Link>
             
-            {/* CTA Button with 'asChild' for instant click response */}
             <Button asChild className="rounded-full bg-slate-900 hover:bg-slate-800 text-white px-6 shadow-xl shadow-slate-900/10 transition-all hover:scale-105 active:scale-95">
               <Link href="/signup">
                 Sign Up Free
@@ -148,7 +147,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Feature Sections (Standard Import) */}
+      {/* Feature Sections */}
       <FeaturesSection />
       <ReviewsSection />
       <FAQSection />
