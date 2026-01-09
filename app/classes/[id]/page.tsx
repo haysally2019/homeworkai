@@ -23,19 +23,18 @@ import { useAuth } from '@/lib/auth-context';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
-// OPTIMIZATION: Lazy load heavy components to unblock the main thread
-// This ensures the tab clicks are instant, showing a spinner while the content loads.
+// OPTIMIZATION: Keep lazy loading but improve loading UX
 const MaterialsTab = lazy(() => import('@/components/class-tabs/MaterialsTab').then(mod => ({ default: mod.MaterialsTab })));
 const NotesTab = lazy(() => import('@/components/class-tabs/NotesTab').then(mod => ({ default: mod.NotesTab })));
 const AssignmentsTab = lazy(() => import('@/components/class-tabs/AssignmentsTab').then(mod => ({ default: mod.AssignmentsTab })));
 const PaywallModal = lazy(() => import('@/components/PaywallModal').then(m => ({ default: m.PaywallModal })));
 
-// Helper for the loading state
+// Helper for the loading state - simpler to avoid layout shift
 const TabLoading = () => (
-  <div className="flex h-64 items-center justify-center text-slate-400">
+  <div className="flex h-full min-h-[200px] items-center justify-center text-slate-400">
     <div className="flex flex-col items-center gap-2">
-      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      <p className="text-sm font-medium">Loading content...</p>
+      <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+      <p className="text-sm font-medium">Loading...</p>
     </div>
   </div>
 );
@@ -50,6 +49,7 @@ export default function ClassDetailsPage() {
   const [loading, setLoading] = useState(true);
   
   // State for rendering control
+  // Initialize visitedTabs with the DEFAULT tab so it renders immediately
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['chat']));
   const [activeTab, setActiveTab] = useState('chat');
 
@@ -57,6 +57,7 @@ export default function ClassDetailsPage() {
     setActiveTab(value);
     // Add to visited set immediately to trigger the lazy render
     setVisitedTabs((prev) => {
+      if (prev.has(value)) return prev;
       const newSet = new Set(prev);
       newSet.add(value);
       return newSet;
@@ -175,66 +176,46 @@ export default function ClassDetailsPage() {
 
         <div className="flex-1 overflow-hidden relative bg-slate-50/50">
           
-          {/* Chat Tab - Loaded immediately */}
-          <TabsContent 
-            value="chat" 
-            forceMount={true} 
-            className={cn("h-full m-0 flex-col", activeTab === "chat" ? "flex" : "hidden")}
-          >
+          {/* Chat Tab - Always mounted for instant access */}
+          <div className={cn("h-full m-0 flex-col", activeTab === "chat" ? "flex" : "hidden")}>
              <ClassChatInterface classId={classData.id} className={classData.name} />
-          </TabsContent>
+          </div>
 
-          {/* Notes Tab - Lazy loaded with Suspense */}
-          <TabsContent 
-            value="notes" 
-            forceMount={true} 
-            className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "notes" ? "block" : "hidden")}
-          >
+          {/* Notes Tab - Lazy loaded, then kept alive via CSS */}
+          <div className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "notes" ? "block" : "hidden")}>
             {visitedTabs.has('notes') && (
-              <div className="max-w-6xl mx-auto">
+              <div className="max-w-6xl mx-auto h-full">
                 <Suspense fallback={<TabLoading />}>
                   <NotesTab classId={classData.id} userId={user?.id || ''} />
                 </Suspense>
               </div>
             )}
-          </TabsContent>
+          </div>
 
-          {/* Materials Tab - Lazy loaded with Suspense */}
-          <TabsContent 
-            value="materials" 
-            forceMount={true} 
-            className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "materials" ? "block" : "hidden")}
-          >
+          {/* Materials Tab */}
+          <div className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "materials" ? "block" : "hidden")}>
             {visitedTabs.has('materials') && (
-              <div className="max-w-6xl mx-auto">
+              <div className="max-w-6xl mx-auto h-full">
                 <Suspense fallback={<TabLoading />}>
                   <MaterialsTab classId={classData.id} userId={user?.id || ''} />
                 </Suspense>
               </div>
             )}
-          </TabsContent>
+          </div>
 
-          {/* Assignments Tab - Lazy loaded with Suspense */}
-          <TabsContent 
-            value="assignments" 
-            forceMount={true} 
-            className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "assignments" ? "block" : "hidden")}
-          >
+          {/* Assignments Tab */}
+          <div className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "assignments" ? "block" : "hidden")}>
             {visitedTabs.has('assignments') && (
-              <div className="max-w-5xl mx-auto">
+              <div className="max-w-5xl mx-auto h-full">
                 <Suspense fallback={<TabLoading />}>
                   <AssignmentsTab classId={classData.id} userId={user?.id || ''} />
                 </Suspense>
               </div>
             )}
-          </TabsContent>
+          </div>
 
-          {/* Grader Tab - Lightweight, rendered inline */}
-          <TabsContent 
-            value="grader" 
-            forceMount={true} 
-            className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "grader" ? "block" : "hidden")}
-          >
+          {/* Grader Tab */}
+          <div className={cn("h-full m-0 p-4 md:p-6 overflow-y-auto", activeTab === "grader" ? "block" : "hidden")}>
              {visitedTabs.has('grader') && (
                <div className="max-w-5xl mx-auto h-full flex flex-col">
                   <div className="mb-6">
@@ -287,7 +268,7 @@ export default function ClassDetailsPage() {
                   </div>
                </div>
              )}
-          </TabsContent>
+          </div>
         </div>
       </Tabs>
 
