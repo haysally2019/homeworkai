@@ -11,9 +11,10 @@ import {
   Zap,
   Check,
   Camera,
-  MessageSquare,
   Library,
-  GraduationCap
+  GraduationCap,
+  Crown,
+  Clock
 } from 'lucide-react';
 import {
   Accordion,
@@ -140,83 +141,143 @@ export function FeaturesSection() {
   );
 }
 
-// --- PRICING (Psychological Anchoring) ---
+// --- PRICING (MATCHING SYSTEM PAYWALL) ---
 export function PricingSection() {
   return (
     <section className="py-20 bg-white border-t border-slate-100">
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Simple, student-friendly pricing</h2>
-          <p className="text-lg text-slate-600">Start for free. Upgrade when you need superpowers.</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Plans that fit your semester</h2>
+          <p className="text-lg text-slate-600">Start for free. Upgrade for unlimited power.</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {/* Free Tier */}
-          <Card className="border-slate-200 shadow-none hover:border-blue-200 transition-all relative overflow-hidden">
-             <div className="h-2 bg-slate-500 w-full" />
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold">Free Starter</CardTitle>
-              <CardDescription>Perfect for daily homework help</CardDescription>
-              <div className="mt-4">
-                <span className="text-4xl font-bold text-slate-900">$0</span>
-                <span className="text-slate-500">/forever</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto items-start">
+          
+          {/* 1. Free */}
+          <Card className="border-slate-200 shadow-sm hover:border-blue-200 transition-all">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl font-bold text-slate-700">Starter</CardTitle>
+              <div className="mt-2">
+                <span className="text-3xl font-bold text-slate-900">$0</span>
               </div>
+              <CardDescription>Daily help</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-4">
-                <li className="flex items-center gap-3 text-slate-700">
-                  <Check className="w-5 h-5 text-green-500 shrink-0" /> 5 AI Credits daily
+              <ul className="space-y-3 text-sm">
+                <li className="flex items-center gap-2 text-slate-600">
+                  <Check className="w-4 h-4 text-green-500 shrink-0" /> 5 AI Credits / Day
                 </li>
-                <li className="flex items-center gap-3 text-slate-700">
-                  <Check className="w-5 h-5 text-green-500 shrink-0" /> Basic Problem Solver
-                </li>
-                <li className="flex items-center gap-3 text-slate-700">
-                  <Check className="w-5 h-5 text-green-500 shrink-0" /> 1 Class Notebook
+                <li className="flex items-center gap-2 text-slate-600">
+                  <Check className="w-4 h-4 text-green-500 shrink-0" /> Basic Solver
                 </li>
               </ul>
             </CardContent>
             <CardFooter>
-              <Button asChild variant="outline" className="w-full h-12 text-lg">
-                <Link href="/signup">Get Started Free</Link>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/signup">Get Started</Link>
               </Button>
             </CardFooter>
           </Card>
 
-          {/* Pro Tier - Highlighted */}
-          <Card className="border-blue-200 shadow-xl shadow-blue-900/5 relative overflow-hidden transform md:-translate-y-4">
-            <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">POPULAR</div>
-            <div className="h-2 bg-gradient-to-r from-blue-600 to-indigo-600 w-full" />
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold text-blue-900">Altus Pro</CardTitle>
-              <CardDescription>For serious students aiming for an A</CardDescription>
-              <div className="mt-4">
-                <span className="text-4xl font-bold text-slate-900">$9</span>
-                <span className="text-slate-500">/month</span>
+          {/* 2. Monthly */}
+          <Card className="border-slate-200 shadow-sm hover:border-blue-300 transition-all">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <Zap className="w-5 h-5 text-blue-500" /> Monthly
+              </CardTitle>
+              <div className="mt-2">
+                <span className="text-3xl font-bold text-slate-900">$9.99</span>
+                <span className="text-slate-500 text-sm">/mo</span>
               </div>
+              <CardDescription>Flexible learning</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-4">
-                <li className="flex items-center gap-3 text-slate-700 font-medium">
-                  <div className="p-1 bg-blue-100 rounded-full"><Zap className="w-3 h-3 text-blue-600" /></div>
-                  Unlimited AI Credits
+              <ul className="space-y-3 text-sm">
+                <li className="flex items-center gap-2 text-slate-600">
+                  <Check className="w-4 h-4 text-blue-500 shrink-0" /> Unlimited Credits
                 </li>
-                <li className="flex items-center gap-3 text-slate-700">
-                  <Check className="w-5 h-5 text-blue-600 shrink-0" /> Smart Essay Grader
+                <li className="flex items-center gap-2 text-slate-600">
+                  <Check className="w-4 h-4 text-blue-500 shrink-0" /> Step-by-step Logic
                 </li>
-                <li className="flex items-center gap-3 text-slate-700">
-                  <Check className="w-5 h-5 text-blue-600 shrink-0" /> Unlimited Class Notebooks
-                </li>
-                <li className="flex items-center gap-3 text-slate-700">
-                  <Check className="w-5 h-5 text-blue-600 shrink-0" /> Priority Support
+                <li className="flex items-center gap-2 text-slate-600">
+                  <Check className="w-4 h-4 text-blue-500 shrink-0" /> Cancel anytime
                 </li>
               </ul>
             </CardContent>
             <CardFooter>
-              <Button asChild className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20">
-                <Link href="/signup">Start Free Trial</Link>
+              <Button asChild variant="outline" className="w-full border-blue-200 text-blue-700 hover:bg-blue-50">
+                <Link href="/signup">Select Monthly</Link>
               </Button>
             </CardFooter>
           </Card>
+
+          {/* 3. Semester Pass (HIGHLIGHT) */}
+          <Card className="border-blue-500 shadow-xl ring-1 ring-blue-500 relative transform md:-translate-y-2 bg-blue-50/10">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow-md whitespace-nowrap">
+              MOST POPULAR
+            </div>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl font-bold flex items-center gap-2 text-blue-700">
+                <GraduationCap className="w-5 h-5" /> Semester
+              </CardTitle>
+              <div className="mt-2">
+                <span className="text-3xl font-bold text-slate-900">$24.99</span>
+                <span className="text-slate-500 text-sm">/one-time</span>
+              </div>
+              <CardDescription className="text-blue-600/80 font-medium">Valid for 4 months</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-3 text-sm">
+                <li className="flex items-center gap-2 text-slate-700 font-medium">
+                  <Check className="w-4 h-4 text-blue-600 shrink-0" /> All Pro Features
+                </li>
+                <li className="flex items-center gap-2 text-slate-700 font-medium">
+                  <Check className="w-4 h-4 text-blue-600 shrink-0" /> Exam Prep Generator
+                </li>
+                <li className="flex items-center gap-2 text-slate-700 font-medium">
+                  <Check className="w-4 h-4 text-blue-600 shrink-0" /> No recurring fees
+                </li>
+              </ul>
+            </CardContent>
+            <CardFooter>
+              <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
+                <Link href="/signup">Get Semester Pass</Link>
+              </Button>
+            </CardFooter>
+          </Card>
+
+          {/* 4. Annual */}
+          <Card className="border-slate-200 shadow-sm hover:border-purple-300 transition-all">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <Crown className="w-5 h-5 text-purple-500" /> Annual
+              </CardTitle>
+              <div className="mt-2">
+                <span className="text-3xl font-bold text-slate-900">$39.99</span>
+                <span className="text-slate-500 text-sm">/yr</span>
+              </div>
+              <CardDescription>Best long-term value</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-3 text-sm">
+                <li className="flex items-center gap-2 text-slate-600">
+                  <Check className="w-4 h-4 text-purple-500 shrink-0" /> Save 65% vs Monthly
+                </li>
+                <li className="flex items-center gap-2 text-slate-600">
+                  <Check className="w-4 h-4 text-purple-500 shrink-0" /> Beta Feature Access
+                </li>
+                <li className="flex items-center gap-2 text-slate-600">
+                  <Check className="w-4 h-4 text-purple-500 shrink-0" /> Priority Support
+                </li>
+              </ul>
+            </CardContent>
+            <CardFooter>
+              <Button asChild variant="outline" className="w-full hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200">
+                <Link href="/signup">Select Annual</Link>
+              </Button>
+            </CardFooter>
+          </Card>
+
         </div>
       </div>
     </section>
@@ -254,7 +315,7 @@ export function ReviewsSection() {
   );
 }
 
-// --- FAQ ---
+// --- FAQ (UPDATED) ---
 export function FAQSection() {
   return (
     <section className="py-20 bg-white">
@@ -262,16 +323,20 @@ export function FAQSection() {
         <h2 className="text-3xl font-bold text-center text-slate-900 mb-8">Frequently Asked Questions</h2>
         <Accordion type="single" collapsible className="w-full space-y-4">
           <FAQItem 
+            question="What is the Semester Pass?"
+            answer="The Semester Pass is a one-time payment of $24.99 that gives you full Pro access for 4 months. It's perfect for students who want coverage for a single term without worrying about recurring monthly subscriptions."
+          />
+          <FAQItem 
             question="Is Altus really free?"
-            answer="Yes! You can sign up and start using Altus for free immediately with a daily credit allowance. No credit card required."
+            answer="Yes! Our Free Starter plan gives you 5 AI credits every single day. This is enough for a few homework problems or quick questions. Credits reset at midnight."
+          />
+          <FAQItem 
+            question="Can I cancel my subscription?"
+            answer="Absolutely. If you choose the Monthly plan, you can cancel anytime from your settings. The Semester and Annual passes are one-time payments that simply expire at the end of their term—no cancellation needed."
           />
           <FAQItem 
             question="Does it work for advanced math?"
-            answer="Absolutely. Altus is powered by Google Gemini, capable of solving complex Calculus, Linear Algebra, Organic Chemistry, and Physics problems."
-          />
-          <FAQItem 
-            question="How is this different from ChatGPT?"
-            answer="Altus is purpose-built for students. We have dedicated modes for visual problem solving and strict grading rubrics. Plus, we organize your chats into 'Classes' so the AI retains context for the whole semester."
+            answer="Yes. Altus is powered by Google Gemini, capable of solving complex Calculus, Linear Algebra, Organic Chemistry, and Physics problems with high accuracy."
           />
         </Accordion>
       </div>
