@@ -33,39 +33,36 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push('/chat');
+      // FIX: Redirect to dashboard instead of chat
+      router.push('/dashboard');
       router.refresh();
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
-      <Card className="w-full max-w-md bg-slate-900 border-slate-800 shadow-xl">
+      <Card className="w-full max-w-md bg-slate-900 border-slate-800 shadow-2xl">
         <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-6">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-900/20">
-              <span className="text-xl font-bold text-white">A</span>
-            </div>
-          </div>
-          <CardTitle className="text-2xl text-center text-white font-bold">Welcome Back</CardTitle>
-          <CardDescription className="text-center text-slate-400">
-            Sign in to continue your progress
+          <CardTitle className="text-2xl font-bold text-white">Welcome back</CardTitle>
+          <CardDescription className="text-slate-400">
+            Enter your credentials to access your account
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-6 bg-red-900/50 border-red-900 text-red-200">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={handleLogin} className="space-y-4">
-            {error && (
-              <Alert variant="destructive" className="bg-red-950/50 border-red-900 text-red-200">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-slate-300 text-xs uppercase tracking-wider font-semibold">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="student@university.edu"
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -73,7 +70,12 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-300 text-xs uppercase tracking-wider font-semibold">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-slate-300 text-xs uppercase tracking-wider font-semibold">Password</Label>
+                <Link href="#" className="text-xs text-blue-400 hover:text-blue-300">
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -100,7 +102,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <div className="mt-6 text-center text-sm text-slate-400">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
               Sign up
             </Link>
