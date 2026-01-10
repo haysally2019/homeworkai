@@ -66,7 +66,6 @@ export function Sidebar() {
       <div className="p-4 flex items-center justify-between h-16 shrink-0 border-b border-slate-100">
         {!isCollapsed && (
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">A</div>
             <span className="font-bold text-slate-800 text-lg tracking-tight">LockIn AI</span>
           </div>
         )}
