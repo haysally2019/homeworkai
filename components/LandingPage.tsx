@@ -20,7 +20,6 @@ import {
   Bot
 } from 'lucide-react';
 import { useState } from 'react';
-import Image from 'next/image';
 
 export function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -31,15 +30,10 @@ export function LandingPage() {
       {/* Navbar */}
       <nav className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/80 backdrop-blur-xl">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
-          <Link href="/" className="flex items-center gap-2 group relative h-10 w-32">
-             {/* Logo Update */}
-             <Image 
-                src="https://i.imgur.com/8PqYx8W.png" 
-                alt="LockIn AI" 
-                fill
-                className="object-contain object-left"
-                priority
-             />
+          
+          {/* LOGO UPDATE: Text Only */}
+          <Link href="/" className="flex items-center gap-2 group">
+             <span className="text-xl font-bold text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">LockIn AI</span>
           </Link>
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
@@ -217,10 +211,8 @@ export function LandingPage() {
         <div className="container px-4 mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
-               {/* Small Footer Logo */}
-               <div className="relative h-6 w-24 opacity-80 grayscale hover:grayscale-0 transition-all">
-                 <Image src="https://i.imgur.com/8PqYx8W.png" alt="LockIn AI" fill className="object-contain object-left" />
-               </div>
+               {/* Footer Logo: Text Only */}
+               <span className="text-lg font-bold text-white tracking-tight">LockIn AI</span>
             </div>
             <div className="flex gap-8 text-sm font-medium">
                 <a href="#" className="hover:text-white transition-colors">Privacy</a>
